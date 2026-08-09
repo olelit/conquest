@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: conquest
+      POSTGRES_PASSWORD: conquest
+      POSTGRES_DB: conquest_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conquest -d conquest_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - conquest_network
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      target: dev
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: conquest
+      PGPASSWORD: conquest
+      PGDATABASE: conquest_db
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - conquest_network
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      target: dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - conquest_network
+
+volumes:
+  pgdata:
+
+networks:
+  conquest_network:
+    driver: bridge
