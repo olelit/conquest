@@ -27,13 +27,16 @@ export async function countHexes(): Promise<number> {
 export async function insertHexes(
   hexes: { q: number; r: number; terrain: string }[],
 ): Promise<void> {
-  for (const hex of hexes) {
-    await pool.query('INSERT INTO hexes (q, r, terrain) VALUES ($1, $2, $3)', [
-      hex.q,
-      hex.r,
-      hex.terrain,
-    ]);
-  }
+  if (hexes.length === 0) return;
+  const params: (number | string)[] = [];
+  const placeholders = hexes.map((hex, i) => {
+    params.push(hex.q, hex.r, hex.terrain);
+    return `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`;
+  });
+  await pool.query(
+    `INSERT INTO hexes (q, r, terrain) VALUES ${placeholders.join(', ')}`,
+    params,
+  );
 }
 
 export async function fetchHexes(): Promise<{ q: number; r: number; terrain: string }[]> {
