@@ -84,6 +84,18 @@ describe('Room: игроки', () => {
     room.start(1);
     expect(room.addHuman('B', 2)).toBeNull();
   });
+  it('view().game: игроки с hexCount/income и captureTicks в payload', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    const view = room.view().game!;
+    expect(view.captureTicks).toBe(5);
+    expect(view.players[0]).toMatchObject({ id: 1, name: 'A', points: expect.any(Number), hexCount: 0, income: 0, isAi: false });
+    expect(view.players[1]).toMatchObject({ id: 2, hexCount: 0, isAi: true });
+    // после захвата hexCount растёт
+    room.handleAction(1, 'capture', { q: 0, r: 0 });
+    expect(room.view().game!.players[0].hexCount).toBe(1);
+  });
 });
 
 describe('Room: действия и тик', () => {

@@ -16,6 +16,22 @@ export interface RoomSlot {
   disconnected: boolean;
 }
 
+export interface ViewPlayer {
+  id: number;
+  name: string;
+  points: number;
+  hexCount: number;
+  income: number;
+  isAi: boolean;
+}
+
+export interface ViewGame {
+  players: ViewPlayer[];
+  hexes: HexState[];
+  winnerId: number | null;
+  captureTicks: number;
+}
+
 export interface RoomView {
   id: number;
   name: string;
@@ -26,7 +42,7 @@ export interface RoomView {
   hostPlayerId: number | null;
   slots: { id: number; name: string; isAi: boolean }[];
   paused: boolean;
-  game: GameState | null;
+  game: ViewGame | null;
   log: string[];
 }
 
@@ -105,6 +121,7 @@ export class Room {
 
   start(connId: number): { ok: true } | { ok: false; error: string } {
     if (this.status !== 'waiting') return { ok: false, error: 'Игра уже началась' };
+    if (this.hostPlayerId === null) return { ok: false, error: 'Нет хозяина' };
     if (this.slotForConn(connId) !== this.hostPlayerId) {
       return { ok: false, error: 'Только хозяин может начать игру' };
     }
@@ -246,7 +263,21 @@ export class Room {
       hostPlayerId: this.hostPlayerId,
       slots: this.slots.map((s) => ({ id: s.id, name: s.name, isAi: s.isAi })),
       paused: this.paused,
-      game: this.state,
+      game: this.state
+        ? {
+            players: this.state.players.map((p) => ({
+              id: p.id,
+              name: p.name ?? `Игрок ${p.id}`,
+              points: p.points,
+              hexCount: rules.hexCount(this.state!, p.id),
+              income: rules.playerIncome(this.state!, p.id),
+              isAi: p.isAi ?? false,
+            })),
+            hexes: this.state.hexes,
+            winnerId: this.state.winnerId,
+            captureTicks: rules.CAPTURE_TICKS,
+          }
+        : null,
       log: this.log,
     };
   }
