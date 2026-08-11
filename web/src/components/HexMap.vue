@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { playerColor, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
 const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number }>();
@@ -99,6 +99,87 @@ function onWheel(e: WheelEvent): void {
   };
 }
 
+const PAN_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
+const pressedKeys = new Set<string>();
+let panRaf = 0;
+
+function onKeyDown(e: KeyboardEvent): void {
+  if (!PAN_KEYS.has(e.code)) return;
+  pressedKeys.add(e.code);
+  if (!panRaf) panRaf = requestAnimationFrame(panStep);
+}
+
+function onKeyUp(e: KeyboardEvent): void {
+  pressedKeys.delete(e.code);
+  if (pressedKeys.size === 0 && panRaf) {
+    cancelAnimationFrame(panRaf);
+    panRaf = 0;
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function panStep(): void {
+  const base = baseViewBox.value;
+  const v = view.value ?? base;
+  let dx = 0;
+  let dy = 0;
+  const stepX = v.w * 0.03;
+  const stepY = v.h * 0.03;
+  if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) dx -= stepX;
+  if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) dx += stepX;
+  if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) dy -= stepY;
+  if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) dy += stepY;
+  if (dx !== 0 || dy !== 0) {
+    view.value = {
+      ...v,
+      x: clamp(v.x + dx, base.x, base.x + base.w - v.w),
+      y: clamp(v.y + dy, base.y, base.y + base.h - v.h),
+    };
+  }
+  panRaf = requestAnimationFrame(panStep);
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keyup', onKeyUp);
+  if (panRaf) {
+    cancelAnimationFrame(panRaf);
+    panRaf = 0;
+  }
+});
+
+const prevOwners = ref<Map<string, number | null>>(new Map());
+const flashKeys = ref<Set<string>>(new Set());
+
+watch(
+  () => props.hexes,
+  (hexes) => {
+    const next = new Map<string, number | null>();
+    for (const hex of hexes) {
+      const key = `${hex.q},${hex.r}`;
+      next.set(key, hex.ownerId);
+      const prev = prevOwners.value.get(key);
+      if (prev !== undefined && prev !== hex.ownerId && hex.ownerId !== null) {
+        flashKeys.value = new Set(flashKeys.value).add(key);
+        setTimeout(() => {
+          const s = new Set(flashKeys.value);
+          s.delete(key);
+          flashKeys.value = s;
+        }, 600);
+      }
+    }
+    prevOwners.value = next;
+  },
+);
+
 const hoveredPos = ref<{ q: number; r: number } | null>(null);
 const hovered = computed(() => {
   if (!hoveredPos.value) return null;
@@ -182,6 +263,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           v-if="ownerStyle(hex)"
           :points="hexPoints(hex.q, hex.r).points"
           :style="ownerStyle(hex)!"
+          :class="{ 'hex-flash': flashKeys.has(hex.q + ',' + hex.r) }"
           class="hex-tint"
         />
         <polygon
@@ -239,9 +321,10 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 
 <style scoped>
 .hex-map {
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100%;
-  max-width: 1100px;
+  height: 100%;
 }
 
 .hex-map__svg {
@@ -337,5 +420,23 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 .battle-tooltip__bar-fill {
   height: 100%;
   background: #ffd54f;
+}
+
+.hex-flash {
+  animation: owner-flash 0.6s ease-out;
+}
+
+@keyframes owner-flash {
+  0% {
+    fill: #ffffff;
+    fill-opacity: 0.9;
+  }
+  60% {
+    fill: #ffffff;
+    fill-opacity: 0.8;
+  }
+  100% {
+    fill-opacity: 0.5;
+  }
 }
 </style>

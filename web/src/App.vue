@@ -282,30 +282,32 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else-if="room && game">
-      <div class="app__header">
-        <h1>{{ room.name }}</h1>
-        <div class="app__controls">
-          <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause">
-            {{ room.paused ? 'Продолжить' : 'Пауза' }}
-          </button>
-          <button class="app__btn app__burger" @click="burgerOpen = !burgerOpen">☰</button>
+      <div class="game-screen">
+        <div class="app__header">
+          <h1>{{ room.name }}</h1>
+          <div class="app__controls">
+            <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause">
+              {{ room.paused ? 'Продолжить' : 'Пауза' }}
+            </button>
+            <button class="app__btn app__burger" @click="burgerOpen = !burgerOpen">☰</button>
+          </div>
         </div>
-      </div>
-      <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
-      <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
-      <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
-      <div v-if="error" class="banner banner--error">{{ error }}</div>
-      <Hud v-if="game" :game="game" :human-id="playerId" />
-      <HexMap
-        v-if="game"
-        :hexes="game.hexes"
-        :players="game.players"
-        :capture-ticks="game.captureTicks"
-        @click="onHexClick"
-      />
-      <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
-      <div v-if="room.log?.length" class="log-panel">
-        <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
+        <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
+        <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
+        <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
+        <div v-if="error" class="banner banner--error">{{ error }}</div>
+        <Hud v-if="game" :game="game" :human-id="playerId" />
+        <HexMap
+          v-if="game"
+          :hexes="game.hexes"
+          :players="game.players"
+          :capture-ticks="game.captureTicks"
+          @click="onHexClick"
+        />
+        <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
+        <div v-if="room.log?.length" class="log-panel">
+          <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
+        </div>
       </div>
     </template>
 
@@ -325,12 +327,19 @@ onBeforeUnmount(() => {
   padding: 16px;
 }
 
+.game-screen {
+  position: fixed;
+  inset: 0;
+}
+
 .app__header {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  position: relative;
+  z-index: 40;
 }
 
 .app__controls {
@@ -522,6 +531,8 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   margin-bottom: 12px;
   font-weight: 600;
+  position: relative;
+  z-index: 40;
 }
 
 .banner--win {
