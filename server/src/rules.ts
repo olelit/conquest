@@ -185,23 +185,45 @@ export function applyDefend(state: GameState, playerId: number, q: number, r: nu
   hex.battleProgress = 0;
 }
 
-export function tickBattles(state: GameState): void {
+export interface BattleResult {
+  q: number;
+  r: number;
+  winnerId: number | null;
+}
+
+export function tickBattles(state: GameState): BattleResult[] {
+  const results: BattleResult[] = [];
   for (const hex of state.hexes) {
     if (hex.attackerId === null) continue;
-    hex.battleProgress += 1;
-    if (hex.battleProgress < CAPTURE_TICKS) continue;
-    const winnerId =
-      hex.attackInvestment > hex.defenseInvestment
-        ? hex.attackerId
-        : hex.defenseInvestment > hex.attackInvestment
-          ? hex.defenderId
-          : hex.defenderId ?? hex.attackerId;
-    if (winnerId === null) continue;
-    const winner = state.players.find((p) => p.id === winnerId);
-    if (winner) winner.points += Math.max(hex.attackInvestment, hex.defenseInvestment);
-    hex.ownerId = winnerId;
+    if (hex.attackInvestment > 0 && hex.defenseInvestment > 0) {
+      hex.attackInvestment = Math.max(0, hex.attackInvestment - DRAIN_PER_TICK);
+      hex.defenseInvestment = Math.max(0, hex.defenseInvestment - DRAIN_PER_TICK);
+      hex.battleProgress = 0;
+      if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
+        results.push({ q: hex.q, r: hex.r, winnerId: null });
+        resetBattle(hex);
+      }
+      continue;
+    }
+    if (hex.attackInvestment > 0 || hex.defenseInvestment > 0) {
+      hex.battleProgress += 1;
+      if (hex.battleProgress < CAPTURE_TICKS) continue;
+      const attackerWon = hex.attackInvestment > 0;
+      const winnerId = attackerWon ? hex.attackerId : hex.defenderId;
+      if (winnerId === null) continue;
+      const winner = state.players.find((p) => p.id === winnerId);
+      if (winner) {
+        winner.points += attackerWon ? hex.attackInvestment : hex.defenseInvestment;
+      }
+      results.push({ q: hex.q, r: hex.r, winnerId });
+      hex.ownerId = winnerId;
+      resetBattle(hex);
+      continue;
+    }
+    results.push({ q: hex.q, r: hex.r, winnerId: null });
     resetBattle(hex);
   }
+  return results;
 }
 
 function resetBattle(hex: HexState): void {
