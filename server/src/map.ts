@@ -1,6 +1,9 @@
-export const TERRAINS = ['grass', 'forest', 'mountain', 'water', 'desert'] as const;
+import { config } from './config.js';
 
+export const TERRAINS = ['grass', 'forest', 'mountain', 'water', 'desert', 'mine'] as const;
 export type Terrain = (typeof TERRAINS)[number];
+
+export type MapType = 'normal' | 'long' | 'island' | 'round' | 'belarus';
 
 export interface Hex {
   q: number;
@@ -8,19 +11,95 @@ export interface Hex {
   terrain: Terrain;
 }
 
-export const MAP_COLUMNS = 16;
-export const MAP_ROWS = 12;
+export interface MapPreset {
+  columns: number;
+  rows: number;
+  minPlayers: number;
+  maxPlayers: number;
+  recommendedAi: number;
+}
 
-export function generateMap(columns = MAP_COLUMNS, rows = MAP_ROWS): Hex[] {
+export const MAP_PRESETS: Record<MapType, MapPreset> = {
+  normal: { columns: 16, rows: 12, minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+  long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
+  belarus: { columns: 20, rows: 13, minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+};
+
+export const MAP_COLUMNS = MAP_PRESETS.normal.columns;
+export const MAP_ROWS = MAP_PRESETS.normal.rows;
+export const MOUNTAIN_TO_MINE_CHANCE = config.mineChance;
+
+// Контур Беларуси: для каждой строки r диапазон q (минимальный, максимальный).
+const BELARUS_ROWS: [number, number][] = [
+  [3, 12],
+  [2, 13],
+  [2, 14],
+  [2, 15],
+  [2, 16],
+  [3, 17],
+  [3, 18],
+  [2, 18],
+  [1, 18],
+  [1, 18],
+  [2, 17],
+  [3, 16],
+  [5, 14],
+];
+
+export function generateMap(type: MapType = 'normal'): Hex[] {
+  const preset = MAP_PRESETS[type];
   const hexes: Hex[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let q = 0; q < columns; q++) {
-      hexes.push({
-        q,
-        r,
-        terrain: TERRAINS[Math.floor(Math.random() * TERRAINS.length)],
-      });
+  for (let r = 0; r < preset.rows; r++) {
+    for (let q = 0; q < preset.columns; q++) {
+      if (type === 'round' && !isInCircle(q, r)) continue;
+      const terrain = isLand(type, preset, q, r) ? randomTerrain() : 'water';
+      hexes.push({ q, r, terrain });
     }
   }
   return hexes;
+}
+
+function isInCircle(q: number, r: number): boolean {
+  const cq = (MAP_PRESETS.round.columns - 1) / 2;
+  const cr = (MAP_PRESETS.round.rows - 1) / 2;
+  return hexDistance(q, r, cq, cr) <= 9;
+}
+
+function isLand(type: MapType, preset: MapPreset, q: number, r: number): boolean {
+  switch (type) {
+    case 'normal':
+    case 'long':
+      return true;
+    case 'round':
+      return true;
+    case 'island': {
+      const cq = (preset.columns - 1) / 2;
+      const cr = (preset.rows - 1) / 2;
+      const dq = q - cq;
+      const dr = r - cr;
+      return (dq * dq) / 49 + (dr * dr) / 36 <= 1;
+    }
+    case 'belarus': {
+      const row = BELARUS_ROWS[r];
+      if (!row) return false;
+      return q >= row[0] && q <= row[1];
+    }
+  }
+}
+
+function hexDistance(aq: number, ar: number, bq: number, br: number): number {
+  const dq = aq - bq;
+  const dr = ar - br;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+const LAND_TERRAINS = TERRAINS.filter((t) => t !== 'water');
+
+function randomTerrain(): Terrain {
+  let terrain = LAND_TERRAINS[Math.floor(Math.random() * LAND_TERRAINS.length)];
+  if (terrain === 'mine') terrain = 'mountain';
+  if (terrain === 'mountain' && Math.random() < config.mineChance) terrain = 'mine';
+  return terrain;
 }

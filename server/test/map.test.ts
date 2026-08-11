@@ -1,24 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import { generateMap, MAP_COLUMNS, MAP_ROWS, TERRAINS } from '../src/map.js';
+import { generateMap, MAP_PRESETS, MAP_COLUMNS, MAP_ROWS, TERRAINS, type MapType } from '../src/map.js';
 
 describe('generateMap', () => {
-  it('возвращает ровно 16*12 = 192 гекса', () => {
-    expect(generateMap()).toHaveLength(MAP_COLUMNS * MAP_ROWS);
+  it('обычная: ровно 16*12 = 192 гекса', () => {
+    expect(generateMap('normal')).toHaveLength(MAP_COLUMNS * MAP_ROWS);
   });
-
   it('возвращает уникальные координаты', () => {
-    const hexes = generateMap();
+    const hexes = generateMap('normal');
     const keys = new Set(hexes.map((h) => `${h.q},${h.r}`));
     expect(keys.size).toBe(hexes.length);
   });
-
   it('использует только известные типы местности', () => {
-    for (const hex of generateMap()) {
+    for (const hex of generateMap('normal')) {
       expect(TERRAINS).toContain(hex.terrain);
     }
   });
-
-  it('учитывает переданный размер', () => {
-    expect(generateMap(3, 2)).toHaveLength(6);
+  it('длинная: 24*9 = 216 гексов', () => {
+    expect(generateMap('long')).toHaveLength(216);
+  });
+  it('круглая: 271 гекс (круг радиусом 9)', () => {
+    expect(generateMap('round')).toHaveLength(271);
+  });
+  it('остров: суша 120–160 гексов, остальное — вода', () => {
+    const hexes = generateMap('island');
+    expect(hexes).toHaveLength(15 * 13);
+    const land = hexes.filter((h) => h.terrain !== 'water').length;
+    expect(land).toBeGreaterThanOrEqual(120);
+    expect(land).toBeLessThanOrEqual(160);
+    expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
+  });
+  it('беларусь: суша 160–200 гексов, остальное — вода', () => {
+    const hexes = generateMap('belarus');
+    expect(hexes).toHaveLength(20 * 13);
+    const land = hexes.filter((h) => h.terrain !== 'water').length;
+    expect(land).toBeGreaterThanOrEqual(160);
+    expect(land).toBeLessThanOrEqual(200);
+    expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
+  });
+  it('все гексы в границах пресета', () => {
+    for (const type of ['normal', 'long', 'island', 'round', 'belarus'] as MapType[]) {
+      const preset = MAP_PRESETS[type];
+      for (const hex of generateMap(type)) {
+        expect(hex.q).toBeGreaterThanOrEqual(0);
+        expect(hex.q).toBeLessThan(preset.columns);
+        expect(hex.r).toBeGreaterThanOrEqual(0);
+        expect(hex.r).toBeLessThan(preset.rows);
+      }
+    }
   });
 });
