@@ -291,6 +291,23 @@ describe('тик битвы: захват', () => {
     expect(findHex(s, 6, 5)!.attackInvestment).toBe(290);
     expect(findHex(s, 6, 5)!.defenseInvestment).toBe(490);
   });
+  it('дрип-защита (малые вложения) не отменяет захват: пул атаки больше — захват завершается, остаток возвращается', () => {
+    const s = makeState(
+      [{ q: 6, r: 5, ownerId: AI, attackerId: P, defenderId: AI, attackInvestment: 800, defenseInvestment: 151 }],
+      [{ id: 1, points: 200 }, { id: 2, points: 1000 }],
+    );
+    let result: { q: number; r: number; winnerId: number | null } | undefined;
+    for (let i = 0; i < 10 && !result; i++) {
+      result = tickBattles(s)[0];
+      const hex = findHex(s, 6, 5)!;
+      if (hex.attackerId !== null) applyDefend(s, AI, 6, 5, 21);
+    }
+    const hex = findHex(s, 6, 5)!;
+    expect(hex.ownerId).toBe(P);
+    expect(hex.attackerId).toBeNull();
+    expect(s.players[0].points).toBeGreaterThan(200);
+    expect(result).toEqual({ q: 6, r: 5, winnerId: P });
+  });
   it('защитник отбивает свой гекс: пул атакующего сгорает, остаток защитника возвращается', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, defenderId: AI, attackerId: P, attackInvestment: 100, defenseInvestment: 600 }], [{ id: 1, points: 900 }, { id: 2, points: 400 }]);
     for (let i = 0; i < 15; i++) tickBattles(s);

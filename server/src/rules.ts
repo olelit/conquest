@@ -202,14 +202,13 @@ export function tickBattles(state: GameState): BattleResult[] {
     if (hex.attackInvestment > 0 && hex.defenseInvestment > 0) {
       hex.attackInvestment = Math.max(0, hex.attackInvestment - DRAIN_PER_TICK);
       hex.defenseInvestment = Math.max(0, hex.defenseInvestment - DRAIN_PER_TICK);
-      hex.battleProgress = 0;
-      if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
-        results.push({ q: hex.q, r: hex.r, winnerId: null });
-        resetBattle(hex);
-      }
+    }
+    if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
+      results.push({ q: hex.q, r: hex.r, winnerId: null });
+      resetBattle(hex);
       continue;
     }
-    if (hex.attackInvestment > 0 || hex.defenseInvestment > 0) {
+    if (hex.attackInvestment === 0 || hex.defenseInvestment === 0) {
       hex.battleProgress += 1;
       if (hex.battleProgress < CAPTURE_TICKS) continue;
       const attackerWon = hex.attackInvestment > 0;
@@ -224,8 +223,17 @@ export function tickBattles(state: GameState): BattleResult[] {
       resetBattle(hex);
       continue;
     }
-    results.push({ q: hex.q, r: hex.r, winnerId: null });
-    resetBattle(hex);
+    if (hex.attackInvestment > hex.defenseInvestment) {
+      hex.battleProgress += 1;
+      if (hex.battleProgress < CAPTURE_TICKS) continue;
+      const winner = state.players.find((p) => p.id === hex.attackerId);
+      if (winner) winner.points += hex.attackInvestment;
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId });
+      hex.ownerId = hex.attackerId;
+      resetBattle(hex);
+      continue;
+    }
+    hex.battleProgress = 0;
   }
   return results;
 }
