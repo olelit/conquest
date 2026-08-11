@@ -23,7 +23,7 @@ import {
   validateAttack,
   validateCapture,
   validateDefend,
-  WIN_HEX_COUNT,
+  winHexCount,
   type GameState,
   type HexState,
   type PlayerState,
@@ -203,6 +203,36 @@ describe('атака на гекс соперника', () => {
     applyAttack(s, P, 6, 5, 100);
     expect(findHex(s, 6, 5)!.battleProgress).toBe(2);
     expect(findHex(s, 6, 5)!.attackInvestment).toBe(400);
+  });
+});
+
+describe('N игроков', () => {
+  function makeState3(hexes: Partial<HexState>[] = []): GameState {
+    return makeState(hexes, [
+      { id: 1, points: 1000 },
+      { id: 2, points: 1000 },
+      { id: 3, points: 1000 },
+    ]);
+  }
+  it('захват нейтрального гекса рядом с любым соперником порождает битву', () => {
+    const s = makeState3([{ q: 5, r: 5, ownerId: 3 }, { q: 6, r: 5, ownerId: 1 }]);
+    applyCapture(s, 2, 4, 5);
+    const hex = findHex(s, 4, 5)!;
+    expect(hex.attackerId).toBe(2);
+    expect(hex.attackInvestment).toBe(1);
+  });
+  it('нейтральный спорный гекс может защищать любой соседний игрок', () => {
+    const s = makeState3([{ q: 4, r: 5, attackerId: 1, attackInvestment: 300 }, { q: 5, r: 5, ownerId: 3 }]);
+    expect(validateDefend(s, 3, 4, 5, 100).ok).toBe(true);
+    expect(validateDefend(s, 2, 4, 5, 100).ok).toBe(false);
+  });
+  it('атаковать можно гекс любого соперника', () => {
+    const s = makeState3([{ q: 5, r: 5, ownerId: 3 }, { q: 6, r: 5, ownerId: 1 }, { q: 4, r: 5, ownerId: 2 }]);
+    expect(validateAttack(s, 2, 5, 5, 150).ok).toBe(true);
+  });
+  it('свой гекс атаковать нельзя', () => {
+    const s = makeState3([{ q: 5, r: 5, ownerId: 2 }]);
+    expect(validateAttack(s, 2, 5, 5, 150).ok).toBe(false);
   });
 });
 
@@ -515,7 +545,7 @@ describe('окружение', () => {
 });
 
 describe('победа', () => {
-  it('победа при ≥97 гексов', () => {
+  it('победа при 50%+1 гексов (97 из 192)', () => {
     const s = makeState();
     for (let i = 0; i < 96; i++) s.hexes[i].ownerId = P;
     computeWinner(s);
@@ -523,6 +553,13 @@ describe('победа', () => {
     s.hexes[96].ownerId = P;
     computeWinner(s);
     expect(s.winnerId).toBe(P);
+  });
+  it('победа для N игроков', () => {
+    const s = makeState([], [{ id: 1, points: 1000 }, { id: 2, points: 1000 }, { id: 3, points: 1000 }]);
+    const target = winHexCount(s.hexes.length);
+    for (let i = 0; i < target; i++) s.hexes[i].ownerId = 1;
+    computeWinner(s);
+    expect(s.winnerId).toBe(1);
   });
 });
 
@@ -534,7 +571,7 @@ describe('вспомогательные', () => {
     expect(hasAdjacentOwner(s, 7, 7, AI)).toBe(false);
   });
   it('константы захвата', () => {
-    expect(WIN_HEX_COUNT).toBe(97);
+    expect(winHexCount(192)).toBe(97);
     expect(CAPTURE_TICKS).toBe(5);
     expect(DRAIN_PER_TICK).toBe(10);
   });

@@ -23,7 +23,6 @@ export const config = {
   limitPerHex: number('CONQUEST_LIMIT_PER_HEX', 50),
   incomePerHex: number('CONQUEST_INCOME_PER_HEX', 3),
   mineIncomeBonus: number('CONQUEST_MINE_INCOME_BONUS', 3),
-  winHexCount: number('CONQUEST_WIN_HEX_COUNT', 97),
   captureTicks: number('CONQUEST_CAPTURE_TICKS', 5),
   drainPerTick: number('CONQUEST_DRAIN_PER_TICK', 10),
   tickIntervalMs: number('CONQUEST_TICK_INTERVAL_MS', 1000),

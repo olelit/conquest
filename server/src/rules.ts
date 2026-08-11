@@ -6,7 +6,6 @@ export const TERRAIN_COSTS: Record<Terrain, number> = config.terrainCosts;
 
 export const BASE_POINTS = config.basePoints;
 export const LIMIT_PER_HEX = config.limitPerHex;
-export const WIN_HEX_COUNT = config.winHexCount;
 export const INCOME_PER_HEX = config.incomePerHex;
 export const MINE_INCOME_BONUS = config.mineIncomeBonus;
 export const CAPTURE_TICKS = config.captureTicks;
@@ -74,6 +73,10 @@ export function hasAdjacentOwner(state: GameState, q: number, r: number, playerI
 
 export function pointLimit(hexCount: number): number {
   return BASE_POINTS + hexCount * LIMIT_PER_HEX;
+}
+
+export function winHexCount(totalHexes: number): number {
+  return Math.floor(totalHexes / 2) + 1;
 }
 
 export function terrainCost(terrain: Terrain): number {
@@ -149,7 +152,7 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
   const isFirst = hexCount(state, playerId) === 0;
   const cost = isFirst ? 0 : terrainCost(hex.terrain);
   player.points -= cost;
-  if (hasAdjacentOwner(state, q, r, opponentId(state, playerId))) {
+  if (hasAdjacentOtherOwner(state, q, r, playerId)) {
     hex.attackerId = playerId;
     hex.attackInvestment = Math.max(1, cost);
     hex.defenderId = null;
@@ -160,8 +163,14 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
   }
 }
 
-function opponentId(state: GameState, playerId: number): number {
-  return state.players.find((p) => p.id !== playerId)!.id;
+function hasAdjacentOtherOwner(state: GameState, q: number, r: number, playerId: number): boolean {
+  return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
+    const nq = q + dq;
+    const nr = r + dr;
+    if (!isInBounds(nq, nr)) return false;
+    const hex = findHex(state, nq, nr);
+    return hex !== undefined && hex.ownerId !== null && hex.ownerId !== playerId;
+  });
 }
 
 export function applyAttack(state: GameState, playerId: number, q: number, r: number, points: number): void {
@@ -306,8 +315,9 @@ function enclosureOwner(state: GameState, region: HexState[]): number | null {
 
 export function computeWinner(state: GameState): void {
   if (state.winnerId !== null) return;
+  const target = winHexCount(state.hexes.length);
   for (const player of state.players) {
-    if (hexCount(state, player.id) >= WIN_HEX_COUNT) {
+    if (hexCount(state, player.id) >= target) {
       state.winnerId = player.id;
       return;
     }
