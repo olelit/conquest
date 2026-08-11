@@ -103,7 +103,10 @@ export function validateCapture(state: GameState, playerId: number, q: number, r
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: 'Игрок не найден' };
   const count = hexCount(state, playerId);
-  if (count === 0) return { ok: true };
+  if (count === 0) {
+    if (hex.terrain === 'water') return { ok: false, error: 'Первый гекс не может быть на воде' };
+    return { ok: true };
+  }
   if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
   if (player.points - army < terrainCost(hex.terrain)) return { ok: false, error: 'Не хватает очков (часть занята армией)' };
   return { ok: true };

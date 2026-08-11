@@ -114,4 +114,10 @@ describe('chooseAiAction', () => {
     ], 400);
     expect(chooseAiAction(s, 2)).toEqual({ type: 'attack', q: 5, r: 5, points: 150 });
   });
+  it('первый захват не выбирает воду', () => {
+    const s = makeState([{ q: 0, r: 0, terrain: 'water' }, { q: 8, r: 6, ownerId: 1 }]);
+    const action = chooseAiAction(s, 2)!;
+    const hex = s.hexes.find((h) => h.q === action.q && h.r === action.r)!;
+    expect(hex.terrain).not.toBe('water');
+  });
 });

@@ -103,6 +103,12 @@ describe('первый бесплатный захват', () => {
     const s = makeState([{ q: 5, r: 5, attackerId: AI, attackInvestment: 300 }]);
     expect(validateCapture(s, P, 5, 5).ok).toBe(false);
   });
+  it('первый гекс не может быть на воде', () => {
+    const s = makeState([{ q: 5, r: 5, terrain: 'water' }]);
+    expect(validateCapture(s, P, 5, 5).ok).toBe(false);
+    const s2 = makeState([{ q: 5, r: 5, terrain: 'water' }]);
+    expect(validateCapture(s2, P, 6, 5).ok).toBe(true);
+  });
 });
 
 describe('захват нейтрального гекса', () => {

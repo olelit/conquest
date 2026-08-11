@@ -19,10 +19,6 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
     const contestable =
       hex.ownerId === aiId || (hex.ownerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId));
     if (!contestable) continue;
-    if (hex.defenseInvestment === 0 && hex.attackInvestment > 0) {
-      const invest = Math.min(ai.points, hex.attackInvestment + 1);
-      if (invest >= 1) return { type: 'defend', q: hex.q, r: hex.r, points: invest };
-    }
     if (hex.attackInvestment >= hex.defenseInvestment) {
       const invest = Math.min(ai.points, hex.attackInvestment - hex.defenseInvestment + 1);
       if (invest >= 1) return { type: 'defend', q: hex.q, r: hex.r, points: invest };
@@ -75,7 +71,9 @@ function hasAnyAdjacentOwner(state: GameState, q: number, r: number): boolean {
 }
 
 function chooseFirstCapture(state: GameState, aiId: number): AiAction | null {
-  const free = state.hexes.filter((hex) => hex.ownerId === null && hex.attackerId === null);
+  const free = state.hexes.filter(
+    (hex) => hex.ownerId === null && hex.attackerId === null && hex.terrain !== 'water',
+  );
   if (free.length === 0) return null;
   const enemyHexes = state.hexes.filter((hex) => hex.ownerId !== null && hex.ownerId !== aiId);
   if (enemyHexes.length === 0) {
