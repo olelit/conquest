@@ -26,6 +26,8 @@ services:
       PGUSER: conquest
       PGPASSWORD: conquest
       PGDATABASE: conquest_db
+      # CONQUEST_DRAIN_PER_TICK: 10
+      # CONQUEST_CAPTURE_TICKS: 5
     volumes:
       - ./server:/app
       - /app/node_modules
