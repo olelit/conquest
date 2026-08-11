@@ -60,6 +60,7 @@ export class Room {
   status: RoomStatus = 'waiting';
   hostPlayerId: number | null = null;
   paused = false;
+  finishedAt: number | null = null;
 
   private slots: RoomSlot[] = [];
   private connToSlot = new Map<number, number>();
@@ -126,10 +127,11 @@ export class Room {
       return { ok: false, error: 'Только хозяин может начать игру' };
     }
     const aiToAdd = this.aiMode ? this.aiCount : this.maxPlayers - this.slots.length;
+    const usedNames = new Set(this.slots.map((s) => s.name));
     for (let i = 0; i < aiToAdd; i++) {
       this.slots.push({
         id: this.nextSlotId(),
-        name: randomCountryName(),
+        name: uniqueCountryName(usedNames),
         isAi: true,
         connId: null,
         disconnected: false,
@@ -163,7 +165,11 @@ export class Room {
   tick(): void {
     if (this.status !== 'playing' || this.paused) return;
     const state = this.state;
-    if (!state || state.winnerId !== null) return;
+    if (!state) return;
+    if (state.winnerId !== null) {
+      if (this.finishedAt === null) this.finishedAt = Date.now();
+      return;
+    }
     rules.applyIncome(state);
     const results = rules.tickBattles(state);
     for (const result of results) {
@@ -338,11 +344,28 @@ export function randomCountryName(): string {
   return prefix + suffix;
 }
 
+function uniqueCountryName(used: Set<string>): string {
+  let name = randomCountryName();
+  let suffix = 2;
+  while (used.has(name)) {
+    name = `${randomCountryName()} ${suffix}`;
+    suffix++;
+  }
+  used.add(name);
+  return name;
+}
+
 export class RoomManager {
   private rooms = new Map<number, Room>();
   private connToRoom = new Map<number, number>();
   private authProfiles = new Map<number, GoogleProfile>();
   private nextRoomId = 1;
+
+  constructor(private readonly finishedRoomGraceMs = 60_000) {}
+
+  get roomCount(): number {
+    return this.rooms.size;
+  }
 
   roomForConn(connId: number): Room | null {
     const roomId = this.connToRoom.get(connId);
@@ -450,8 +473,20 @@ export class RoomManager {
   }
 
   tickAll(): void {
+    const toRemove: Room[] = [];
     for (const room of this.rooms.values()) {
       room.tick();
+      if (room.status !== 'playing') continue;
+      if (room.humanCount === 0) {
+        toRemove.push(room);
+        continue;
+      }
+      if (room.finishedAt !== null && Date.now() - room.finishedAt >= this.finishedRoomGraceMs) {
+        toRemove.push(room);
+      }
+    }
+    for (const room of toRemove) {
+      this.removeRoom(room);
     }
   }
 
@@ -462,7 +497,14 @@ export class RoomManager {
 
   private cleanupRoom(room: Room): void {
     if (room.status === 'waiting' && room.isEmpty) {
-      this.rooms.delete(room.id);
+      this.removeRoom(room);
+    }
+  }
+
+  private removeRoom(room: Room): void {
+    this.rooms.delete(room.id);
+    for (const [conn, roomId] of this.connToRoom) {
+      if (roomId === room.id) this.connToRoom.delete(conn);
     }
   }
 

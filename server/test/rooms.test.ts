@@ -42,6 +42,18 @@ describe('Room: состав при старте', () => {
     room.start(1);
     expect(room.gameState!.hexes).toHaveLength(192);
   });
+  it('пустую комнату нельзя начать', () => {
+    const room = makeRoom();
+    expect(room.start(1).ok).toBe(false);
+    expect(room.status).toBe('waiting');
+  });
+  it('имена AI не повторяются', () => {
+    const room = makeRoom(false, 1, 6);
+    room.addHuman('A', 1);
+    room.start(1);
+    const names = room.gameState!.players.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
 });
 
 describe('Room: игроки', () => {
@@ -227,5 +239,36 @@ describe('RoomManager', () => {
     // поэтому проверяем updateName через комнату напрямую:
     m.roomForConn(1)!.updateName(1, 'НовоеИмя');
     expect(m.roomForConn(1)!.view().slots[0].name).toBe('НовоеИмя');
+  });
+  it('все люди вышли из игры — комната удаляется', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    m.startRoom(1);
+    expect(m.roomCount).toBe(1);
+    m.connectionClosed(1);
+    m.connectionClosed(2);
+    m.tickAll();
+    expect(m.roomCount).toBe(0);
+  });
+  it('завершённая игра удаляется после grace-периода (grace 0)', () => {
+    const m = new RoomManager(0);
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    m.startRoom(1);
+    m.roomForConn(1)!.gameState!.winnerId = 1;
+    m.tickAll();
+    expect(m.roomCount).toBe(0);
+    expect(m.roomForConn(1)).toBeNull();
+    expect(m.roomForConn(2)).toBeNull();
+  });
+  it('завершённая игра живёт внутри grace-периода', () => {
+    const m = new RoomManager(60_000);
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    m.startRoom(1);
+    m.roomForConn(1)!.gameState!.winnerId = 1;
+    m.tickAll();
+    expect(m.roomCount).toBe(1);
   });
 });
