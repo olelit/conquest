@@ -154,12 +154,19 @@ describe('захват нейтрального гекса у границы с�
     applyCapture(s, P, 6, 5);
     expect(findHex(s, 6, 5)!.ownerId).toBe(P);
   });
-  it('бесплатный первый гекс у границы ИИ — битва с вложением 1 очко', () => {
+  it('бесплатный первый гекс у границы ИИ — битва с реальным пулом (стоимость гекса)', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI }]);
     applyCapture(s, P, 5, 5);
     const hex = findHex(s, 5, 5)!;
     expect(hex.attackerId).toBe(P);
-    expect(hex.attackInvestment).toBe(1);
+    expect(hex.attackInvestment).toBe(150);
+    expect(s.players[0].points).toBe(850);
+  });
+  it('первый гекс у границы врага не берётся без очков', () => {
+    const poor = makeState([{ q: 6, r: 5, ownerId: AI }], [{ id: 1, points: 100 }, { id: 2, points: 1000 }]);
+    expect(validateCapture(poor, P, 5, 5).ok).toBe(false);
+    const far = makeState([{ q: 9, r: 9, ownerId: AI }], [{ id: 1, points: 100 }, { id: 2, points: 1000 }]);
+    expect(validateCapture(far, P, 5, 5).ok).toBe(true);
   });
 });
 
@@ -231,7 +238,7 @@ describe('N игроков', () => {
     applyCapture(s, 2, 4, 5);
     const hex = findHex(s, 4, 5)!;
     expect(hex.attackerId).toBe(2);
-    expect(hex.attackInvestment).toBe(1);
+    expect(hex.attackInvestment).toBe(150);
   });
   it('нейтральный спорный гекс может защищать любой соседний игрок', () => {
     const s = makeState3([{ q: 4, r: 5, attackerId: 1, attackInvestment: 300 }, { q: 5, r: 5, ownerId: 3 }]);

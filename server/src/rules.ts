@@ -105,6 +105,9 @@ export function validateCapture(state: GameState, playerId: number, q: number, r
   const count = hexCount(state, playerId);
   if (count === 0) {
     if (hex.terrain === 'water') return { ok: false, error: 'Первый гекс не может быть на воде' };
+    if (hasAdjacentOtherOwner(state, q, r, playerId) && player.points - army < terrainCost(hex.terrain)) {
+      return { ok: false, error: 'Не хватает очков для битвы у границы врага' };
+    }
     return { ok: true };
   }
   if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
@@ -157,8 +160,10 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
   const cost = isFirst ? 0 : terrainCost(hex.terrain);
   player.points -= cost;
   if (hasAdjacentOtherOwner(state, q, r, playerId)) {
+    const pool = cost > 0 ? cost : terrainCost(hex.terrain);
+    if (pool !== cost) player.points -= pool - cost;
     hex.attackerId = playerId;
-    hex.attackInvestment = Math.max(1, cost);
+    hex.attackInvestment = pool;
     hex.defenderId = null;
     hex.defenseInvestment = 0;
     hex.battleProgress = 0;
