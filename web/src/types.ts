@@ -1,5 +1,29 @@
 export type Terrain = 'grass' | 'forest' | 'mountain' | 'water' | 'desert' | 'mine';
 
+export type MapType = 'normal' | 'long' | 'island' | 'round' | 'belarus';
+
+export interface MapInfo {
+  label: string;
+  description: string;
+  minPlayers: number;
+  maxPlayers: number;
+  recommendedAi: number;
+}
+
+export const MAP_INFO: Record<MapType, MapInfo> = {
+  normal: { label: 'Обычная', description: 'прямоугольник 16×12', minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+  long: { label: 'Длинная', description: 'полоса 24×9', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  island: { label: 'Остров', description: 'овал с водой по краям', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  round: { label: 'Круглая', description: 'круг радиусом 9', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
+  belarus: { label: 'Беларусь', description: 'контур страны', minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+};
+
+export const PLAYER_COLORS = ['#9c27b0', '#e53935', '#00897b', '#fb8c00', '#1e88e5', '#43a047'];
+
+export function playerColor(playerId: number): string {
+  return PLAYER_COLORS[(playerId - 1) % PLAYER_COLORS.length];
+}
+
 export interface Hex {
   q: number;
   r: number;
@@ -22,14 +46,38 @@ export interface Player {
 }
 
 export interface GameState {
-  phase: 'menu' | 'waiting' | 'game';
-  mode: 'ai' | 'human';
   players: Player[];
-  winnerId: number | null;
-  paused: boolean;
-  captureTicks: number;
-  log: string[];
   hexes: Hex[];
+  winnerId: number | null;
+  captureTicks: number;
+}
+
+export interface RoomLobbyInfo {
+  id: number;
+  name: string;
+  mapType: MapType;
+  maxPlayers: number;
+  humans: number;
+}
+
+export interface RoomSlot {
+  id: number;
+  name: string;
+  isAi: boolean;
+}
+
+export interface RoomView {
+  id: number;
+  name: string;
+  mapType: MapType;
+  maxPlayers: number;
+  status: 'waiting' | 'playing';
+  aiMode: boolean;
+  hostPlayerId: number | null;
+  slots: RoomSlot[];
+  paused: boolean;
+  game: GameState | null;
+  log: string[];
 }
 
 export type ClientMessage =
@@ -38,9 +86,11 @@ export type ClientMessage =
   | { type: 'defend'; q: number; r: number; points: number }
   | { type: 'pause' }
   | { type: 'menu' }
-  | { type: 'start-ai' }
-  | { type: 'start-human' }
-  | { type: 'cancel-waiting' }
+  | { type: 'leave-room' }
+  | { type: 'start-solo'; mapType: MapType; aiCount: number }
+  | { type: 'create-room'; mapType: MapType; maxPlayers: number }
+  | { type: 'join-room'; roomId: number }
+  | { type: 'start-room' }
   | { type: 'auth'; token: string };
 
 export interface AuthProfile {
@@ -50,7 +100,13 @@ export interface AuthProfile {
 }
 
 export type ServerMessage =
-  | { type: 'state'; playerId: number | null; waiting: boolean; auth: AuthProfile | null; game: GameState }
+  | {
+      type: 'state';
+      playerId: number | null;
+      auth: AuthProfile | null;
+      rooms: RoomLobbyInfo[];
+      room: RoomView | null;
+    }
   | { type: 'error'; message: string };
 
 export const TERRAIN_COLORS: Record<Terrain, string> = {
@@ -69,11 +125,6 @@ export const TERRAIN_LABELS: Record<Terrain, string> = {
   water: 'Вода',
   desert: 'Пустыня',
   mine: 'Шахта',
-};
-
-export const PLAYER_COLOR: Record<'human' | 'ai', string> = {
-  human: '#9c27b0',
-  ai: '#e53935',
 };
 
 export const TERRAIN_COSTS: Record<Terrain, number> = {
