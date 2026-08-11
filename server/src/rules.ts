@@ -178,25 +178,22 @@ export function applyAttack(state: GameState, playerId: number, q: number, r: nu
   const hex = findHex(state, q, r)!;
   const player = state.players.find((p) => p.id === playerId)!;
   player.points -= points;
-  const wasZero = hex.attackInvestment === 0;
   hex.attackInvestment += points;
   if (hex.attackerId === null) {
     hex.attackerId = playerId;
     hex.defenderId = hex.ownerId;
+    hex.battleProgress = 0;
   }
-  if (wasZero) hex.battleProgress = 0;
 }
 
 export function applyDefend(state: GameState, playerId: number, q: number, r: number, points: number): void {
   const hex = findHex(state, q, r)!;
   const player = state.players.find((p) => p.id === playerId)!;
   player.points -= points;
-  const wasZero = hex.defenseInvestment === 0;
   hex.defenseInvestment += points;
   if (hex.defenderId === null) {
     hex.defenderId = playerId;
   }
-  if (wasZero) hex.battleProgress = 0;
 }
 
 export interface BattleResult {
@@ -209,33 +206,38 @@ export function tickBattles(state: GameState): BattleResult[] {
   const results: BattleResult[] = [];
   for (const hex of state.hexes) {
     if (hex.attackerId === null) continue;
-    if (hex.attackInvestment > 0 && hex.defenseInvestment > 0) {
-      hex.attackInvestment = Math.max(0, hex.attackInvestment - DRAIN_PER_TICK);
-      hex.defenseInvestment = Math.max(0, hex.defenseInvestment - DRAIN_PER_TICK);
-      hex.battleProgress = 0;
-      if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
-        results.push({ q: hex.q, r: hex.r, winnerId: null });
-        resetBattle(hex);
-      }
-      continue;
-    }
-    if (hex.attackInvestment > 0 || hex.defenseInvestment > 0) {
-      hex.battleProgress += 1;
-      if (hex.battleProgress < CAPTURE_TICKS) continue;
-      const attackerWon = hex.attackInvestment > 0;
-      const winnerId = attackerWon ? hex.attackerId : hex.defenderId;
-      if (winnerId === null) continue;
-      const winner = state.players.find((p) => p.id === winnerId);
-      if (winner) {
-        winner.points += attackerWon ? hex.attackInvestment : hex.defenseInvestment;
-      }
-      results.push({ q: hex.q, r: hex.r, winnerId });
-      hex.ownerId = winnerId;
+    hex.attackInvestment = Math.max(0, hex.attackInvestment - DRAIN_PER_TICK);
+    hex.defenseInvestment = Math.max(0, hex.defenseInvestment - DRAIN_PER_TICK);
+    if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
+      results.push({ q: hex.q, r: hex.r, winnerId: null });
       resetBattle(hex);
       continue;
     }
-    results.push({ q: hex.q, r: hex.r, winnerId: null });
-    resetBattle(hex);
+    if (hex.attackInvestment > hex.defenseInvestment) {
+      hex.battleProgress += 1;
+    } else if (hex.defenseInvestment > hex.attackInvestment) {
+      hex.battleProgress -= 1;
+    }
+    if (hex.battleProgress >= CAPTURE_TICKS) {
+      const winner = state.players.find((p) => p.id === hex.attackerId);
+      if (winner) winner.points += hex.attackInvestment;
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId });
+      hex.ownerId = hex.attackerId;
+      resetBattle(hex);
+      continue;
+    }
+    if (hex.battleProgress <= -CAPTURE_TICKS) {
+      if (hex.defenderId === null) {
+        results.push({ q: hex.q, r: hex.r, winnerId: null });
+        resetBattle(hex);
+        continue;
+      }
+      const winner = state.players.find((p) => p.id === hex.defenderId);
+      if (winner) winner.points += hex.defenseInvestment;
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.defenderId });
+      hex.ownerId = hex.defenderId;
+      resetBattle(hex);
+    }
   }
   return results;
 }

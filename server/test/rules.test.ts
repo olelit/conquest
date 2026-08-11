@@ -201,17 +201,14 @@ describe('атака на гекс соперника', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 500 }]);
     expect(validateAttack(s, P, 6, 5, 10).ok).toBe(true);
   });
-  it('вложение защитника во время захвата атакующего сбрасывает прогресс', () => {
+  it('вложения не сбрасывают прогресс — они меняют лидера', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300, battleProgress: 2 }]);
-    applyDefend(s, AI, 6, 5, 100);
-    expect(findHex(s, 6, 5)!.battleProgress).toBe(0);
-    expect(findHex(s, 6, 5)!.defenseInvestment).toBe(100);
-  });
-  it('долив атакующего, пока он сам захватывает, не сбрасывает прогресс', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300, battleProgress: 2 }]);
-    applyAttack(s, P, 6, 5, 100);
+    applyDefend(s, AI, 6, 5, 400);
     expect(findHex(s, 6, 5)!.battleProgress).toBe(2);
-    expect(findHex(s, 6, 5)!.attackInvestment).toBe(400);
+    expect(findHex(s, 6, 5)!.defenseInvestment).toBe(400);
+    applyAttack(s, P, 6, 5, 200);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(2);
+    expect(findHex(s, 6, 5)!.attackInvestment).toBe(500);
   });
 });
 
@@ -278,78 +275,68 @@ describe('оборона', () => {
   });
 });
 
-describe('тик битвы: трата', () => {
+describe('тик битвы: перевес двигает захват', () => {
   it('оба пула тратятся по DRAIN_PER_TICK за тик', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 600, defenseInvestment: 300 }]);
     tickBattles(s);
     expect(findHex(s, 6, 5)!.attackInvestment).toBe(590);
     expect(findHex(s, 6, 5)!.defenseInvestment).toBe(290);
   });
-  it('пул не уходит в минус', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 5, defenseInvestment: 100 }]);
+  it('перевес атаки двигает прогресс в плюс', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 600, defenseInvestment: 300 }]);
     tickBattles(s);
-    expect(findHex(s, 6, 5)!.attackInvestment).toBe(0);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(1);
   });
-  it('ничья: оба пула дошли до 0 — битва заканчивается без победителя, гекс у владельца', () => {
+  it('перевес обороны двигает прогресс в минус', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, defenderId: AI, attackerId: P, attackInvestment: 300, defenseInvestment: 600 }]);
+    tickBattles(s);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(-1);
+  });
+  it('равные пулы не двигают прогресс', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 500, defenseInvestment: 500 }]);
+    tickBattles(s);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(0);
+  });
+  it('смена лидера разворачивает прогресс', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 600, defenseInvestment: 300, battleProgress: 3 }]);
+    tickBattles(s);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(4);
+    applyDefend(s, AI, 6, 5, 400);
+    tickBattles(s);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(3);
+  });
+  it('завершение: +5 тиков перевеса — атакующий захватывает, остаток возвращается', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 600, defenseInvestment: 300 }], [{ id: 1, points: 400 }, { id: 2, points: 700 }]);
+    for (let i = 0; i < 5; i++) tickBattles(s);
+    const hex = findHex(s, 6, 5)!;
+    expect(hex.ownerId).toBe(P);
+    expect(hex.attackerId).toBeNull();
+    expect(hex.battleProgress).toBe(0);
+    expect(s.players[0].points).toBe(950);
+    expect(s.players[1].points).toBe(700);
+  });
+  it('завершение: −5 тиков перевеса — защитник отбивает, остаток возвращается', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, defenderId: AI, attackerId: P, attackInvestment: 300, defenseInvestment: 600 }], [{ id: 1, points: 700 }, { id: 2, points: 400 }]);
+    for (let i = 0; i < 5; i++) tickBattles(s);
+    const hex = findHex(s, 6, 5)!;
+    expect(hex.ownerId).toBe(AI);
+    expect(hex.attackerId).toBeNull();
+    expect(s.players[1].points).toBe(950);
+    expect(s.players[0].points).toBe(700);
+  });
+  it('нейтральный спорный гекс достаётся защитнику при его перевесе', () => {
+    const s = makeState([{ q: 4, r: 5, attackerId: P, defenderId: AI, attackInvestment: 300, defenseInvestment: 600 }, { q: 5, r: 5, ownerId: AI }]);
+    for (let i = 0; i < 5; i++) tickBattles(s);
+    expect(findHex(s, 4, 5)!.ownerId).toBe(AI);
+  });
+  it('ничья: оба пула дошли до 0 — битва заканчивается без победителя', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 100, defenseInvestment: 100 }]);
     const results: { q: number; r: number; winnerId: number | null }[] = [];
     for (let i = 0; i < 10; i++) results.push(...tickBattles(s));
     const hex = findHex(s, 6, 5)!;
     expect(hex.ownerId).toBe(AI);
     expect(hex.attackerId).toBeNull();
-    expect(hex.attackInvestment).toBe(0);
-    expect(hex.defenseInvestment).toBe(0);
     expect(results).toEqual([{ q: 6, r: 5, winnerId: null }]);
-  });
-});
-
-describe('тик битвы: захват', () => {
-  it('пул соперника на нуле — начинается захват, пул победителя заморожен', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300 }]);
-    tickBattles(s);
-    const hex = findHex(s, 6, 5)!;
-    expect(hex.battleProgress).toBe(1);
-    expect(hex.attackInvestment).toBe(300);
-  });
-  it('через CAPTURE_TICKS тиков захват завершается: гекс у атакующего, остаток пула возвращается', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300 }], [{ id: 1, points: 100 }, { id: 2, points: 900 }]);
-    const results: { q: number; r: number; winnerId: number | null }[] = [];
-    for (let i = 0; i < CAPTURE_TICKS; i++) results.push(...tickBattles(s));
-    const hex = findHex(s, 6, 5)!;
-    expect(hex.ownerId).toBe(P);
-    expect(hex.attackerId).toBeNull();
-    expect(hex.attackInvestment).toBe(0);
-    expect(hex.defenseInvestment).toBe(0);
-    expect(hex.battleProgress).toBe(0);
-    expect(s.players[0].points).toBe(400);
-    expect(s.players[1].points).toBe(900);
-    expect(results).toEqual([{ q: 6, r: 5, winnerId: P }]);
-  });
-  it('вложение защитника во время захвата отменяет его и возобновляет трату', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300 }], [{ id: 1, points: 400 }, { id: 2, points: 900 }]);
-    tickBattles(s);
-    expect(findHex(s, 6, 5)!.battleProgress).toBe(1);
-    applyDefend(s, AI, 6, 5, 500);
-    const hex = findHex(s, 6, 5)!;
-    expect(hex.battleProgress).toBe(0);
-    expect(hex.defenseInvestment).toBe(500);
-    tickBattles(s);
-    expect(findHex(s, 6, 5)!.attackInvestment).toBe(290);
-    expect(findHex(s, 6, 5)!.defenseInvestment).toBe(490);
-  });
-  it('защитник отбивает свой гекс: пул атакующего сгорает, остаток защитника возвращается', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, defenderId: AI, attackerId: P, attackInvestment: 100, defenseInvestment: 600 }], [{ id: 1, points: 900 }, { id: 2, points: 400 }]);
-    for (let i = 0; i < 15; i++) tickBattles(s);
-    const hex = findHex(s, 6, 5)!;
-    expect(hex.ownerId).toBe(AI);
-    expect(hex.attackerId).toBeNull();
-    expect(s.players[1].points).toBe(900);
-    expect(s.players[0].points).toBe(900);
-  });
-  it('обороняющийся забирает нейтральный спорный гекс, если его пул выстоял', () => {
-    const s = makeState([{ q: 4, r: 5, attackerId: P, defenderId: AI, attackInvestment: 100, defenseInvestment: 600 }, { q: 5, r: 5, ownerId: AI }]);
-    for (let i = 0; i < 15; i++) tickBattles(s);
-    expect(findHex(s, 4, 5)!.ownerId).toBe(AI);
   });
 });
 
