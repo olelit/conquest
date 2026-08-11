@@ -4,7 +4,7 @@ import ArmyBar from './components/ArmyBar.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
-import { isAdjacent, TERRAIN_COSTS, type AuthProfile, type GameState, type Hex } from './types';
+import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
 
 declare global {
   interface Window {
@@ -21,19 +21,39 @@ declare global {
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const game = ref<GameState | null>(null);
 const connected = ref(false);
 const error = ref<string | null>(null);
-const selected = ref<Hex | null>(null);
-const viewerId = ref<number | null>(null);
-const isWaiter = ref(false);
 const auth = ref<AuthProfile | null>(null);
+const rooms = ref<RoomLobbyInfo[]>([]);
+const room = ref<RoomView | null>(null);
+const playerId = ref<number | null>(null);
+const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
+const selected = ref<Hex | null>(null);
 const burgerOpen = ref(false);
 const army = ref(200);
+const aiMapType = ref<MapType>('normal');
+const aiCount = ref(1);
+const createMapType = ref<MapType>('normal');
+const createMaxPlayers = ref(5);
 
+const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
-  game.value && viewerId.value !== null ? game.value.players.find((p) => p.id === viewerId.value) ?? null : null,
+  game.value && playerId.value !== null ? game.value.players.find((p) => p.id === playerId.value) ?? null : null,
 );
+const winner = computed(() => {
+  const id = game.value?.winnerId;
+  if (id == null) return null;
+  return game.value?.players.find((p) => p.id === id)?.name ?? null;
+});
+const isHost = computed(() => room.value !== null && room.value.hostPlayerId === playerId.value);
+const showPause = computed(() => room.value?.aiMode === true);
+const aiMax = computed(() => MAP_INFO[aiMapType.value].maxPlayers - 1);
+const createOptions = computed(() => {
+  const info = MAP_INFO[createMapType.value];
+  const opts: number[] = [];
+  for (let i = info.minPlayers; i <= info.maxPlayers; i++) opts.push(i);
+  return opts;
+});
 
 watch(
   () => myPlayer.value?.points ?? 0,
@@ -43,14 +63,14 @@ watch(
 );
 
 const client = new GameClient();
-client.onState = (state, playerId, waiting, authProfile) => {
-  game.value = state;
-  viewerId.value = playerId;
-  isWaiter.value = waiting;
+client.onState = (_state, pid, authProfile, rms, rm) => {
+  playerId.value = pid;
   auth.value = authProfile;
+  rooms.value = rms;
+  room.value = rm;
   error.value = null;
-  if (selected.value) {
-    const fresh = state.hexes.find((h) => h.q === selected.value!.q && h.r === selected.value!.r);
+  if (selected.value && rm?.game) {
+    const fresh = rm.game.hexes.find((h) => h.q === selected.value!.q && h.r === selected.value!.r);
     selected.value = fresh ?? null;
   }
 };
@@ -61,20 +81,14 @@ client.onStatus = (isConnected) => {
   connected.value = isConnected;
 };
 
-const winner = computed(() => {
-  if (!game.value?.winnerId) return null;
-  const w = game.value.players.find((p) => p.id === game.value!.winnerId);
-  return w ? w.name : null;
-});
-
 function onSelect(pos: { q: number; r: number }): void {
   selected.value = game.value?.hexes.find((h) => h.q === pos.q && h.r === pos.r) ?? null;
 }
 
 function isCapturable(hex: Hex): boolean {
   const g = game.value;
-  if (!g || viewerId.value === null || hex.ownerId !== null || hex.attackerId !== null) return false;
-  const human = g.players.find((p) => p.id === viewerId.value);
+  if (!g || playerId.value === null || hex.ownerId !== null || hex.attackerId !== null) return false;
+  const human = g.players.find((p) => p.id === playerId.value);
   if (!human) return false;
   if (human.hexCount === 0) return true;
   if (human.points - army.value < TERRAIN_COSTS[hex.terrain]) return false;
@@ -83,17 +97,17 @@ function isCapturable(hex: Hex): boolean {
 
 function isAdjacentToMine(hex: Hex): boolean {
   const g = game.value;
-  if (!g || viewerId.value === null) return false;
-  return g.hexes.some((h) => h.ownerId === viewerId.value && isAdjacent(h, hex));
+  if (!g || playerId.value === null) return false;
+  return g.hexes.some((h) => h.ownerId === playerId.value && isAdjacent(h, hex));
 }
 
 function onHexClick(hex: Hex): void {
-  if (viewerId.value === null) return;
+  if (playerId.value === null) return;
   if (hex.attackerId !== null) {
     const send = Math.max(1, Math.min(army.value, myPlayer.value?.points ?? 0));
-    if (hex.attackerId === viewerId.value) {
+    if (hex.attackerId === playerId.value) {
       client.sendAttack(hex.q, hex.r, send);
-    } else if (hex.ownerId === viewerId.value || isAdjacentToMine(hex)) {
+    } else if (hex.ownerId === playerId.value || isAdjacentToMine(hex)) {
       client.sendDefend(hex.q, hex.r, send);
     } else {
       onSelect({ q: hex.q, r: hex.r });
@@ -115,8 +129,47 @@ function onPause(): void {
   client.sendPause();
 }
 
+function goToMenu(): void {
+  selected.value = null;
+  burgerOpen.value = false;
+  screen.value = 'menu';
+}
+
+function goToAi(): void {
+  aiMapType.value = 'normal';
+  aiCount.value = 1;
+  screen.value = 'ai';
+}
+
+function goToLobby(): void {
+  createMapType.value = 'normal';
+  createMaxPlayers.value = MAP_INFO.normal.maxPlayers;
+  screen.value = 'lobby';
+}
+
+function startSolo(): void {
+  client.sendStartSolo(aiMapType.value, aiCount.value);
+}
+
+function createRoom(): void {
+  client.sendCreateRoom(createMapType.value, createMaxPlayers.value);
+}
+
+function joinRoom(id: number): void {
+  client.sendJoinRoom(id);
+}
+
+function leaveRoom(): void {
+  selected.value = null;
+  client.sendLeaveRoom();
+}
+
+function startRoom(): void {
+  client.sendStartRoom();
+}
+
 function onToMenu(): void {
-  if (!window.confirm('Вернуться в меню? Текущий прогресс игры будет потерян.')) return;
+  if (!window.confirm('Выйти из комнаты? Игра продолжится с компьютером вместо вас.')) return;
   selected.value = null;
   burgerOpen.value = false;
   client.sendToMenu();
@@ -151,83 +204,114 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="app">
-    <template v-if="game?.phase === 'menu'">
+    <template v-if="screen === 'menu' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
         <p class="menu__subtitle">Выбери режим игры</p>
-        <button class="menu__btn" :disabled="!connected" @click="client.sendStartAi()">
-          Играть с компьютером
-        </button>
-        <button class="menu__btn" :disabled="!connected" @click="client.sendStartHuman()">
-          Играть с человеком
-        </button>
+        <button class="menu__btn" :disabled="!connected" @click="goToAi">Играть с компьютером</button>
+        <button class="menu__btn" :disabled="!connected" @click="goToLobby">Играть с людьми</button>
         <div v-if="GOOGLE_CLIENT_ID" class="menu__google">
           <div v-if="auth" class="menu__auth">Вы вошли как {{ auth.name }}</div>
           <div v-else id="google-btn"></div>
         </div>
-        <p class="menu__hint">
-          Для игры с человеком открой игру во втором окне/вкладке — второй игрок нажмёт
-          «Играть с человеком» и попадёт в игру.
-        </p>
       </div>
     </template>
 
-    <template v-else-if="game?.phase === 'waiting'">
+    <template v-else-if="screen === 'ai' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
-        <p v-if="isWaiter" class="menu__waiting">Ожидание второго игрока…</p>
-        <p v-else class="menu__waiting">Игра ждёт второго игрока</p>
-        <button v-if="isWaiter" class="menu__btn" :disabled="!connected" @click="client.sendCancelWaiting()">
-          Отмена
-        </button>
-        <template v-else>
-          <button class="menu__btn" :disabled="!connected" @click="client.sendStartHuman()">
-            Присоединиться
-          </button>
-          <button class="menu__btn menu__btn--ghost" :disabled="!connected" @click="client.sendToMenu()">
-            В меню
-          </button>
-        </template>
+        <p class="menu__subtitle">Игра с компьютером</p>
+        <select v-model="aiMapType" class="menu__select">
+          <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
+            {{ info.label }} — {{ info.description }}
+          </option>
+        </select>
+        <div class="menu__row">
+          <span class="menu__label">Компьютеров:</span>
+          <select v-model.number="aiCount" class="menu__select">
+            <option v-for="n in aiMax" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </div>
+        <button class="menu__btn" :disabled="!connected" @click="startSolo">Начать игру</button>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
       </div>
     </template>
 
-    <template v-else-if="game">
+    <template v-else-if="screen === 'lobby' && !room">
+      <div class="menu">
+        <h1 class="menu__title">Conquest</h1>
+        <p class="menu__subtitle">Игра с людьми — открытые комнаты</p>
+        <div class="lobby">
+          <div v-for="r in rooms" :key="r.id" class="lobby__room" @click="joinRoom(r.id)">
+            <span class="lobby__name">{{ r.name }}</span>
+            <span class="lobby__map">{{ MAP_INFO[r.mapType].label }}</span>
+            <span class="lobby__players">{{ r.humans }}/{{ r.maxPlayers }}</span>
+          </div>
+          <div v-if="rooms.length === 0" class="lobby__empty">Открытых комнат нет</div>
+        </div>
+        <div class="lobby__create">
+          <h3 class="lobby__create-title">Создать комнату</h3>
+          <select v-model="createMapType" class="menu__select">
+            <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
+              {{ info.label }} — {{ info.description }}
+            </option>
+          </select>
+          <select v-model.number="createMaxPlayers" class="menu__select">
+            <option v-for="n in createOptions" :key="n" :value="n">{{ n }} игроков</option>
+          </select>
+          <button class="menu__btn" :disabled="!connected" @click="createRoom">Создать</button>
+        </div>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
+      </div>
+    </template>
+
+    <template v-else-if="room && room.status === 'waiting'">
+      <div class="menu">
+        <h1 class="menu__title">{{ room.name }}</h1>
+        <p class="menu__subtitle">
+          Карта: {{ MAP_INFO[room.mapType].label }} · {{ room.slots.length }}/{{ room.maxPlayers }} игроков
+        </p>
+        <div class="lobby">
+          <div v-for="s in room.slots" :key="s.id" class="lobby__room">
+            <span class="lobby__name">{{ s.name }}</span>
+            <span v-if="s.id === room.hostPlayerId" class="lobby__host">хозяин</span>
+          </div>
+          <div v-if="room.maxPlayers - room.slots.length > 0" class="lobby__empty">
+            Свободно мест: {{ room.maxPlayers - room.slots.length }}
+          </div>
+        </div>
+        <button v-if="isHost" class="menu__btn" :disabled="!connected" @click="startRoom">Начать игру</button>
+        <p v-else class="menu__waiting">Ожидание начала игры хозяином…</p>
+        <button class="menu__btn menu__btn--ghost" @click="leaveRoom">Покинуть комнату</button>
+      </div>
+    </template>
+
+    <template v-else-if="room && game">
       <div class="app__header">
-        <h1>Conquest</h1>
+        <h1>{{ room.name }}</h1>
         <div class="app__controls">
-          <button class="app__btn" :disabled="!connected" @click="onPause">
-            {{ game.paused ? 'Продолжить' : 'Пауза' }}
+          <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause">
+            {{ room.paused ? 'Продолжить' : 'Пауза' }}
           </button>
-          <button class="app__btn app__burger" :disabled="!connected" @click="burgerOpen = !burgerOpen">
-            ☰
-          </button>
+          <button class="app__btn app__burger" @click="burgerOpen = !burgerOpen">☰</button>
         </div>
       </div>
-      <div v-if="game.paused && !winner" class="banner banner--pause">Пауза</div>
+      <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
       <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
       <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
-      <div v-else-if="!game" class="banner banner--warn">Ожидание состояния…</div>
       <div v-if="error" class="banner banner--error">{{ error }}</div>
-      <Hud v-if="game" :game="game" :human-id="viewerId" />
+      <Hud v-if="game" :game="game" :human-id="playerId" />
       <HexMap
         v-if="game"
         :hexes="game.hexes"
         :players="game.players"
-        :human-id="viewerId"
         :capture-ticks="game.captureTicks"
         @click="onHexClick"
         @select="onSelect"
       />
-      <ArmyBar
-        v-if="game"
-        :game="game"
-        :hex="selected"
-        :human-id="viewerId"
-        :army="army"
-        @army-change="onArmyChange"
-      />
-      <div v-if="game?.log?.length" class="log-panel">
-        <div v-for="(entry, i) in game.log" :key="i" class="log-panel__entry">{{ entry }}</div>
+      <ArmyBar v-if="game" :game="game" :hex="selected" :human-id="playerId" :army="army" @army-change="onArmyChange" />
+      <div v-if="room.log?.length" class="log-panel">
+        <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
       </div>
     </template>
 
@@ -336,17 +420,30 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
+.menu__select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #555;
+  background: #2a2a31;
+  color: #fff;
+  font-size: 15px;
+  min-width: 260px;
+}
+
+.menu__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu__label {
+  color: #ccc;
+}
+
 .menu__waiting {
   font-size: 18px;
   color: #ffd54f;
   margin: 0;
-}
-
-.menu__hint {
-  color: #777;
-  font-size: 12px;
-  max-width: 360px;
-  text-align: center;
 }
 
 .menu__google {
@@ -357,6 +454,73 @@ onBeforeUnmount(() => {
 .menu__auth {
   color: #ce93d8;
   font-weight: 600;
+}
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.lobby__room {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #2a2a31;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.lobby__room:hover {
+  background: #3a3a44;
+}
+
+.lobby__name {
+  font-weight: 700;
+}
+
+.lobby__map {
+  color: #999;
+  font-size: 13px;
+}
+
+.lobby__players {
+  margin-left: auto;
+  color: #ffd54f;
+  font-weight: 600;
+}
+
+.lobby__host {
+  color: #ffd54f;
+  font-size: 12px;
+}
+
+.lobby__empty {
+  color: #777;
+  text-align: center;
+  padding: 10px;
+}
+
+.lobby__create {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #444;
+  padding-top: 14px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.lobby__create-title {
+  margin: 0;
+  color: #ccc;
 }
 
 .banner {
