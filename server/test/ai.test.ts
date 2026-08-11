@@ -14,7 +14,7 @@ function makeState(hexes: Partial<HexState>[], aiPoints = 1000, playerPoints = 1
     const hex = h.find((x) => x.q === p.q && x.r === p.r);
     if (hex) Object.assign(hex, p);
   }
-  return { players: [{ id: 2, points: aiPoints }, { id: 1, points: playerPoints }], hexes: h, winnerId: null };
+  return { players: [{ id: 2, points: aiPoints }, { id: 1, points: playerPoints }], hexes: h, columns: MAP_COLUMNS, rows: MAP_ROWS, winnerId: null };
 }
 
 const P = 1;

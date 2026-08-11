@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_COLUMNS, MAP_ROWS } from '../src/map.js';
+import { MAP_COLUMNS, MAP_PRESETS, MAP_ROWS, generateMap, type Terrain } from '../src/map.js';
 import {
   applyAttack,
   applyCapture,
@@ -40,7 +40,7 @@ function makeState(hexes: Partial<HexState>[] = [], players: { id: number; point
     const hex = h.find((x) => x.q === p.q && x.r === p.r);
     if (hex) Object.assign(hex, p);
   }
-  return { players: players.map((p) => ({ id: p.id, points: p.points })), hexes: h, winnerId: null };
+  return { players: players.map((p) => ({ id: p.id, points: p.points })), hexes: h, columns: MAP_COLUMNS, rows: MAP_ROWS, winnerId: null };
 }
 
 const P = 1;
@@ -69,12 +69,21 @@ describe('геометрия', () => {
     expect(isAdjacent({ q: 5, r: 3 }, { q: 6, r: 4 })).toBe(false);
     expect(isAdjacent({ q: 5, r: 3 }, { q: 5, r: 3 })).toBe(false);
   });
-  it('границы поля', () => {
-    expect(isInBounds(0, 0)).toBe(true);
-    expect(isInBounds(15, 11)).toBe(true);
-    expect(isInBounds(16, 0)).toBe(false);
-    expect(isInBounds(-1, 0)).toBe(false);
-    expect(isInBounds(0, 12)).toBe(false);
+  it('границы поля (обычная 16x12)', () => {
+    const s = makeState();
+    expect(isInBounds(s, 0, 0)).toBe(true);
+    expect(isInBounds(s, 15, 11)).toBe(true);
+    expect(isInBounds(s, 16, 0)).toBe(false);
+    expect(isInBounds(s, -1, 0)).toBe(false);
+    expect(isInBounds(s, 0, 12)).toBe(false);
+  });
+  it('границы поля (длинная 24x9)', () => {
+    const long = makeState([], [{ id: 1, points: 1000 }, { id: 2, points: 1000 }]);
+    long.columns = 24;
+    long.rows = 9;
+    expect(isInBounds(long, 23, 8)).toBe(true);
+    expect(isInBounds(long, 24, 8)).toBe(false);
+    expect(isInBounds(long, 23, 9)).toBe(false);
   });
 });
 
@@ -384,6 +393,53 @@ describe('окружение', () => {
     ]);
     applyEnclosure(s);
     expect(findHex(s, 0, 0)!.ownerId).toBeNull();
+  });
+  it('круглая карта: дыры за пределами круга не роняют сервер (регрессия)', () => {
+    const hexes = generateMap('round').map((h) => ({
+      q: h.q,
+      r: h.r,
+      terrain: h.terrain as Terrain,
+      ownerId: null,
+      attackerId: null,
+      defenderId: null,
+      attackInvestment: 0,
+      defenseInvestment: 0,
+      battleProgress: 0,
+    }));
+    const s: GameState = {
+      players: [{ id: 1, points: 1000 }, { id: 2, points: 1000 }, { id: 3, points: 1000 }],
+      hexes,
+      columns: MAP_PRESETS.round.columns,
+      rows: MAP_PRESETS.round.rows,
+      winnerId: null,
+    };
+    const mid = (MAP_PRESETS.round.columns - 1) / 2;
+    for (const hex of s.hexes) {
+      if (Math.abs(hex.q - mid) <= 2 && Math.abs(hex.r - mid) <= 2) hex.ownerId = P;
+    }
+    expect(() => applyEnclosure(s)).not.toThrow();
+    const claimed = s.hexes.filter((h) => h.ownerId === P).length;
+    expect(claimed).toBeGreaterThan(0);
+  });
+  it('длинная карта: соседство у правого края (q=23) видно (регрессия границ)', () => {
+    const hexes: HexState[] = [];
+    for (let r = 0; r < MAP_PRESETS.long.rows; r++) {
+      for (let q = 0; q < MAP_PRESETS.long.columns; q++) {
+        hexes.push({ q, r, terrain: 'grass', ownerId: null, attackerId: null, defenderId: null, attackInvestment: 0, defenseInvestment: 0, battleProgress: 0 });
+      }
+    }
+    const s: GameState = {
+      players: [{ id: 1, points: 1000 }, { id: 2, points: 1000 }],
+      hexes,
+      columns: MAP_PRESETS.long.columns,
+      rows: MAP_PRESETS.long.rows,
+      winnerId: null,
+    };
+    findHex(s, 22, 4)!.ownerId = P;
+    findHex(s, 23, 4)!.ownerId = AI;
+    expect(hasAdjacentOwner(s, 23, 4, P)).toBe(true);
+    expect(hasAdjacentOwner(s, 22, 4, AI)).toBe(true);
+    expect(hasAdjacentOwner(s, 23, 4, AI)).toBe(false);
   });
   it('гекс в битве не окружается', () => {
     const s = makeState([

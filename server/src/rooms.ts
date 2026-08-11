@@ -135,7 +135,8 @@ export class Room {
       defenseInvestment: 0,
       battleProgress: 0,
     }));
-    this.state = { players, hexes, winnerId: null };
+    const preset = MAP_PRESETS[this.mapType];
+    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null };
     this.status = 'playing';
     this.paused = false;
     this.addLog('Новая игра началась');

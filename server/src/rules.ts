@@ -1,5 +1,4 @@
 import type { Terrain } from './map.js';
-import { MAP_COLUMNS, MAP_ROWS } from './map.js';
 import { config } from './config.js';
 
 export const TERRAIN_COSTS: Record<Terrain, number> = config.terrainCosts;
@@ -33,6 +32,8 @@ export interface HexState {
 export interface GameState {
   players: PlayerState[];
   hexes: HexState[];
+  columns: number;
+  rows: number;
   winnerId: number | null;
 }
 
@@ -53,8 +54,8 @@ export function hexCount(state: GameState, playerId: number): number {
   return state.hexes.reduce((n, h) => n + (h.ownerId === playerId ? 1 : 0), 0);
 }
 
-export function isInBounds(q: number, r: number): boolean {
-  return q >= 0 && q < MAP_COLUMNS && r >= 0 && r < MAP_ROWS;
+export function isInBounds(state: GameState, q: number, r: number): boolean {
+  return q >= 0 && q < state.columns && r >= 0 && r < state.rows;
 }
 
 export function isAdjacent(a: { q: number; r: number }, b: { q: number; r: number }): boolean {
@@ -65,7 +66,7 @@ export function hasAdjacentOwner(state: GameState, q: number, r: number, playerI
   return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
     const nq = q + dq;
     const nr = r + dr;
-    if (!isInBounds(nq, nr)) return false;
+    if (!isInBounds(state, nq, nr)) return false;
     const hex = findHex(state, nq, nr);
     return hex !== undefined && hex.ownerId === playerId;
   });
@@ -167,7 +168,7 @@ function hasAdjacentOtherOwner(state: GameState, q: number, r: number, playerId:
   return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
     const nq = q + dq;
     const nr = r + dr;
-    if (!isInBounds(nq, nr)) return false;
+    if (!isInBounds(state, nq, nr)) return false;
     const hex = findHex(state, nq, nr);
     return hex !== undefined && hex.ownerId !== null && hex.ownerId !== playerId;
   });
@@ -277,8 +278,9 @@ export function applyEnclosure(state: GameState): { ownerId: number; hexes: HexS
       for (const [dq, dr] of NEIGHBOR_OFFSETS) {
         const nq = hex.q + dq;
         const nr = hex.r + dr;
-        if (!isInBounds(nq, nr)) continue;
-        const neighbor = findHex(state, nq, nr)!;
+        if (!isInBounds(state, nq, nr)) continue;
+        const neighbor = findHex(state, nq, nr);
+        if (neighbor === undefined) continue;
         if (neighbor.attackerId !== null) continue;
         if (neighbor.ownerId !== regionOwnerId) continue;
         if (visited.has(neighbor)) continue;
@@ -302,8 +304,9 @@ function enclosureOwner(state: GameState, region: HexState[]): number | null {
     for (const [dq, dr] of NEIGHBOR_OFFSETS) {
       const nq = hex.q + dq;
       const nr = hex.r + dr;
-      if (!isInBounds(nq, nr)) return null;
-      const neighbor = findHex(state, nq, nr)!;
+      if (!isInBounds(state, nq, nr)) return null;
+      const neighbor = findHex(state, nq, nr);
+      if (neighbor === undefined) return null;
       if (inRegion.has(neighbor)) continue;
       if (neighbor.ownerId === null || neighbor.attackerId !== null) return null;
       if (owner === null) owner = neighbor.ownerId;
