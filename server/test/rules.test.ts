@@ -394,7 +394,7 @@ describe('окружение', () => {
     applyEnclosure(s);
     expect(findHex(s, 0, 0)!.ownerId).toBeNull();
   });
-  it('круглая карта: дыры за пределами круга не роняют сервер (регрессия)', () => {
+  it('круглая карта: регион у края диска не роняет enclosure (регрессия)', () => {
     const hexes = generateMap('round').map((h) => ({
       q: h.q,
       r: h.r,
@@ -413,13 +413,10 @@ describe('окружение', () => {
       rows: MAP_PRESETS.round.rows,
       winnerId: null,
     };
-    const mid = (MAP_PRESETS.round.columns - 1) / 2;
-    for (const hex of s.hexes) {
-      if (Math.abs(hex.q - mid) <= 2 && Math.abs(hex.r - mid) <= 2) hex.ownerId = P;
-    }
+    const edge = s.hexes.find((h) => h.q === 18 && h.r === 9)!;
+    edge.ownerId = 1;
     expect(() => applyEnclosure(s)).not.toThrow();
-    const claimed = s.hexes.filter((h) => h.ownerId === P).length;
-    expect(claimed).toBeGreaterThan(0);
+    expect(edge.ownerId).toBe(1);
   });
   it('длинная карта: соседство у правого края (q=23) видно (регрессия границ)', () => {
     const hexes: HexState[] = [];
