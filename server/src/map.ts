@@ -95,11 +95,23 @@ function hexDistance(aq: number, ar: number, bq: number, br: number): number {
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
 }
 
-const LAND_TERRAINS = TERRAINS.filter((t) => t !== 'water');
+const LAND_WEIGHTS: { terrain: Terrain; weight: number }[] = [
+  { terrain: 'grass', weight: 45 },
+  { terrain: 'forest', weight: 25 },
+  { terrain: 'desert', weight: 20 },
+  { terrain: 'mountain', weight: 10 },
+];
 
 function randomTerrain(): Terrain {
-  let terrain = LAND_TERRAINS[Math.floor(Math.random() * LAND_TERRAINS.length)];
-  if (terrain === 'mine') terrain = 'mountain';
-  if (terrain === 'mountain' && Math.random() < config.mineChance) terrain = 'mine';
-  return terrain;
+  const total = LAND_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of LAND_WEIGHTS) {
+    roll -= entry.weight;
+    if (roll <= 0) {
+      let terrain = entry.terrain;
+      if (terrain === 'mountain' && Math.random() < config.mineChance) terrain = 'mine';
+      return terrain;
+    }
+  }
+  return LAND_WEIGHTS[LAND_WEIGHTS.length - 1].terrain;
 }

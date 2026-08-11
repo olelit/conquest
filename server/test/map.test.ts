@@ -37,6 +37,12 @@ describe('generateMap', () => {
     expect(land).toBeLessThanOrEqual(200);
     expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
   });
+  it('гор меньше 15% и больше 5% на большой выборке', () => {
+    const hexes = Array.from({ length: 50 }, () => generateMap('normal')).flat();
+    const mountains = hexes.filter((h) => h.terrain === 'mountain').length;
+    expect(mountains / hexes.length).toBeLessThan(0.15);
+    expect(mountains / hexes.length).toBeGreaterThan(0.05);
+  });
   it('все гексы в границах пресета', () => {
     for (const type of ['normal', 'long', 'island', 'round', 'belarus'] as MapType[]) {
       const preset = MAP_PRESETS[type];
