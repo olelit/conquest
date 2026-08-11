@@ -413,7 +413,11 @@ describe('окружение', () => {
       rows: MAP_PRESETS.round.rows,
       winnerId: null,
     };
-    const edge = s.hexes.find((h) => h.q === 18 && h.r === 9)!;
+    const centerQ = (MAP_PRESETS.round.columns - 1) / 2;
+    const centerR = (MAP_PRESETS.round.rows - 1) / 2;
+    const edge = s.hexes.find((h) => h.q === 9 && h.r === 0)!;
+    const distance = (Math.abs(9 - centerQ) + Math.abs(0 - centerR) + Math.abs(9 - centerQ + 0 - centerR)) / 2;
+    expect(distance).toBe(9);
     edge.ownerId = 1;
     expect(() => applyEnclosure(s)).not.toThrow();
     expect(edge.ownerId).toBe(1);
