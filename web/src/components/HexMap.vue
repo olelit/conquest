@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { PLAYER_COLOR, TERRAIN_COLORS, type Hex, type Player } from '../types';
+import { playerColor, TERRAIN_COLORS, type Hex, type Player } from '../types';
 
-const props = defineProps<{ hexes: Hex[]; players: Player[]; humanId: number | null; captureTicks: number }>();
+const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number }>();
 
 const emit = defineEmits<{ click: [hex: Hex]; select: [hex: { q: number; r: number }] }>();
 
@@ -107,7 +107,7 @@ const hovered = computed(() => {
 
 function colorOf(id: number | null): string {
   if (id === null) return '#999';
-  return id === props.humanId ? PLAYER_COLOR.human : PLAYER_COLOR.ai;
+  return playerColor(id);
 }
 
 function playerName(id: number | null): string {
