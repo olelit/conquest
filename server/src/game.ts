@@ -14,6 +14,7 @@ export interface ServerGameState {
   players: { id: number; name: string; points: number; hexCount: number; income: number; isAi: boolean }[];
   winnerId: number | null;
   paused: boolean;
+  captureTicks: number;
   log: string[];
   hexes: HexState[];
 }
@@ -85,6 +86,7 @@ export class GameService {
       players,
       winnerId: this.state.winnerId,
       paused: this.paused,
+      captureTicks: rules.CAPTURE_TICKS,
       log: this.log,
       hexes: this.state.hexes,
     };
