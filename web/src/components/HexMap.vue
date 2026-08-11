@@ -104,6 +104,7 @@ const pressedKeys = new Set<string>();
 let panRaf = 0;
 
 function onKeyDown(e: KeyboardEvent): void {
+  if ((e.target as HTMLElement | null)?.closest('input, select, textarea')) return;
   if (!PAN_KEYS.has(e.code)) return;
   pressedKeys.add(e.code);
   if (!panRaf) panRaf = requestAnimationFrame(panStep);
@@ -112,6 +113,14 @@ function onKeyDown(e: KeyboardEvent): void {
 function onKeyUp(e: KeyboardEvent): void {
   pressedKeys.delete(e.code);
   if (pressedKeys.size === 0 && panRaf) {
+    cancelAnimationFrame(panRaf);
+    panRaf = 0;
+  }
+}
+
+function onBlur(): void {
+  pressedKeys.clear();
+  if (panRaf) {
     cancelAnimationFrame(panRaf);
     panRaf = 0;
   }
@@ -145,11 +154,13 @@ function panStep(): void {
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
   window.removeEventListener('keyup', onKeyUp);
+  window.removeEventListener('blur', onBlur);
   if (panRaf) {
     cancelAnimationFrame(panRaf);
     panRaf = 0;
@@ -384,7 +395,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
   color: #fff;
   pointer-events: none;
   white-space: nowrap;
-  z-index: 20;
+  z-index: 50;
 }
 
 .battle-tooltip__row {

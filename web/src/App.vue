@@ -116,6 +116,10 @@ function onHexClick(hex: Hex): void {
   }
   if (isCapturable(hex)) {
     client.sendCapture(hex.q, hex.r, army.value);
+    return;
+  }
+  if (hex.ownerId !== null && hex.ownerId !== playerId.value && isAdjacentToMine(hex)) {
+    client.sendAttack(hex.q, hex.r, send);
   }
 }
 
