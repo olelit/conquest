@@ -66,7 +66,7 @@ export class Room {
 
   addHuman(name: string, connId: number): number | null {
     if (this.status !== 'waiting' || this.slots.length >= this.maxPlayers) return null;
-    const id = this.slots.length + 1;
+    const id = this.nextSlotId();
     this.slots.push({ id, name, isAi: false, connId, disconnected: false });
     this.connToSlot.set(connId, id);
     if (this.hostPlayerId === null) this.hostPlayerId = id;
@@ -90,7 +90,6 @@ export class Room {
       const next = this.slots.find((s) => !s.isAi);
       this.hostPlayerId = next ? next.id : null;
     }
-    this.renumberSlots();
   }
 
   start(connId: number): { ok: true } | { ok: false; error: string } {
@@ -100,8 +99,13 @@ export class Room {
     }
     const aiToAdd = this.aiMode ? this.aiCount : this.maxPlayers - this.slots.length;
     for (let i = 0; i < aiToAdd; i++) {
-      const id = this.slots.length + 1;
-      this.slots.push({ id, name: randomCountryName(), isAi: true, connId: null, disconnected: false });
+      this.slots.push({
+        id: this.nextSlotId(),
+        name: randomCountryName(),
+        isAi: true,
+        connId: null,
+        disconnected: false,
+      });
     }
     const players: PlayerState[] = this.slots.map((s) => ({
       id: s.id,
@@ -235,14 +239,8 @@ export class Room {
     };
   }
 
-  private renumberSlots(): void {
-    this.slots.forEach((s, i) => {
-      s.id = i + 1;
-    });
-    this.connToSlot.clear();
-    for (const s of this.slots) {
-      if (s.connId !== null) this.connToSlot.set(s.connId, s.id);
-    }
+  private nextSlotId(): number {
+    return Math.max(0, ...this.slots.map((s) => s.id)) + 1;
   }
 
   private applyAiAction(playerId: number, action: AiAction): void {

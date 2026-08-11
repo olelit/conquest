@@ -52,14 +52,31 @@ describe('Room: игроки', () => {
     expect(room.addHuman('C', 3)).toBeNull();
     expect(room.slotsCount).toBe(2);
   });
-  it('removeHuman в waiting: ренумерация и передача хозяина', () => {
+  it('removeHuman в waiting: передача хозяина, id слотов стабильны', () => {
     const room = makeRoom();
     room.addHuman('A', 1);
     room.addHuman('B', 2);
     room.removeHuman(1);
     expect(room.slotsCount).toBe(1);
     expect(room.hostPlayerId).toBe(2);
-    expect(room.slotForConn(2)).toBe(1);
+    expect(room.slotForConn(2)).toBe(2);
+  });
+  it('новый хозяин после передачи может начать игру', () => {
+    const room = makeRoom(true, 1, 4);
+    room.addHuman('A', 1);
+    room.addHuman('B', 2);
+    room.removeHuman(1);
+    expect(room.start(2).ok).toBe(true);
+    expect(room.status).toBe('playing');
+    expect(room.gameState!.players.map((p) => p.id)).toEqual([2, 3]);
+  });
+  it('новый игрок после ухода получает следующий свободный id', () => {
+    const room = makeRoom(false, 1, 4);
+    room.addHuman('A', 1);
+    room.addHuman('B', 2);
+    room.removeHuman(1);
+    expect(room.addHuman('C', 3)).toBe(3);
+    expect(room.slotForConn(3)).toBe(3);
   });
   it('нельзя добавить в играющую комнату', () => {
     const room = makeRoom(false, 1, 2);
