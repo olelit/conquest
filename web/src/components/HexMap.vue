@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { playerColor, TERRAIN_COLORS, type Hex, type Player } from '../types';
+import { playerColor, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
 const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number }>();
 
-const emit = defineEmits<{ click: [hex: Hex]; select: [hex: { q: number; r: number }] }>();
+const emit = defineEmits<{ click: [hex: Hex] }>();
 
 const HEX_SIZE = 30;
 const SQRT3 = Math.sqrt(3);
@@ -117,19 +117,14 @@ function playerName(id: number | null): string {
 
 function captureState(hex: Hex): { byId: number; progress: number } | null {
   if (hex.attackerId === null || hex.battleProgress === 0) return null;
-  if (hex.attackInvestment > 0 && hex.defenseInvestment === 0) {
-    return { byId: hex.attackerId, progress: hex.battleProgress };
-  }
-  if (hex.defenseInvestment > 0 && hex.attackInvestment === 0) {
-    if (hex.defenderId === null) return null;
-    return { byId: hex.defenderId, progress: hex.battleProgress };
-  }
-  return null;
+  if (hex.battleProgress > 0) return { byId: hex.attackerId, progress: hex.battleProgress };
+  if (hex.defenderId === null) return null;
+  return { byId: hex.defenderId, progress: -hex.battleProgress };
 }
 
 const tooltipPos = computed(() => {
   const hex = hovered.value;
-  if (!hex || hex.attackerId === null) return null;
+  if (!hex) return null;
   const el = mapWrap.value;
   if (!el) return null;
   const rect = el.getBoundingClientRect();
@@ -179,7 +174,6 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
         :key="`${hex.q},${hex.r}`"
         class="hex-group"
         @click="emit('click', hex)"
-        @contextmenu.prevent="emit('select', { q: hex.q, r: hex.r })"
         @mouseenter="hoveredPos = { q: hex.q, r: hex.r }"
         @mouseleave="hoveredPos = null"
       >
@@ -207,29 +201,38 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
     </svg>
 
     <div
-      v-if="tooltipPos && hovered && hovered.attackerId !== null"
+      v-if="tooltipPos && hovered"
       class="battle-tooltip"
       :style="{ left: tooltipPos.left + 'px', top: tooltipPos.top + 'px' }"
     >
       <div class="battle-tooltip__row">
-        <span class="battle-tooltip__name" :style="{ color: colorOf(hovered.attackerId) }">{{ playerName(hovered.attackerId) }}</span>
-        <span class="battle-tooltip__pool">{{ hovered.attackInvestment }}</span>
+        <span>{{ TERRAIN_LABELS[hovered.terrain] }}</span>
+        <span class="battle-tooltip__pool">{{ TERRAIN_COSTS[hovered.terrain] }}</span>
       </div>
       <div class="battle-tooltip__row">
-        <span class="battle-tooltip__name" :style="{ color: colorOf(hovered.defenderId) }">{{ playerName(hovered.defenderId) }}</span>
-        <span class="battle-tooltip__pool">{{ hovered.defenseInvestment }}</span>
+        <span>Владелец: {{ playerName(hovered.ownerId) }}</span>
       </div>
-      <div v-if="captureState(hovered)" class="battle-tooltip__capture">
-        <div class="battle-tooltip__capture-label">
-          Захват: {{ playerName(captureState(hovered)!.byId) }}
+      <template v-if="hovered.attackerId !== null">
+        <div class="battle-tooltip__row">
+          <span class="battle-tooltip__name" :style="{ color: colorOf(hovered.attackerId) }">{{ playerName(hovered.attackerId) }}</span>
+          <span class="battle-tooltip__pool">{{ hovered.attackInvestment }}</span>
         </div>
-        <div class="battle-tooltip__bar">
-          <div
-            class="battle-tooltip__bar-fill"
-            :style="{ width: (captureState(hovered)!.progress / props.captureTicks) * 100 + '%' }"
-          ></div>
+        <div class="battle-tooltip__row">
+          <span class="battle-tooltip__name" :style="{ color: colorOf(hovered.defenderId) }">{{ playerName(hovered.defenderId) }}</span>
+          <span class="battle-tooltip__pool">{{ hovered.defenseInvestment }}</span>
         </div>
-      </div>
+        <div v-if="captureState(hovered)" class="battle-tooltip__capture">
+          <div class="battle-tooltip__capture-label">
+            Захват: {{ playerName(captureState(hovered)!.byId) }}
+          </div>
+          <div class="battle-tooltip__bar">
+            <div
+              class="battle-tooltip__bar-fill"
+              :style="{ width: Math.min(100, (captureState(hovered)!.progress / props.captureTicks) * 100) + '%' }"
+            ></div>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>

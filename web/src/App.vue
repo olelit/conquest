@@ -28,7 +28,6 @@ const rooms = ref<RoomLobbyInfo[]>([]);
 const room = ref<RoomView | null>(null);
 const playerId = ref<number | null>(null);
 const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
-const selected = ref<Hex | null>(null);
 const burgerOpen = ref(false);
 const army = ref(200);
 const aiMapType = ref<MapType>('normal');
@@ -80,10 +79,6 @@ client.onState = (_state, pid, authProfile, rms, rm) => {
   rooms.value = rms;
   room.value = rm;
   error.value = null;
-  if (selected.value && rm?.game) {
-    const fresh = rm.game.hexes.find((h) => h.q === selected.value!.q && h.r === selected.value!.r);
-    selected.value = fresh ?? null;
-  }
 };
 client.onError = (message) => {
   error.value = message;
@@ -91,10 +86,6 @@ client.onError = (message) => {
 client.onStatus = (isConnected) => {
   connected.value = isConnected;
 };
-
-function onSelect(pos: { q: number; r: number }): void {
-  selected.value = game.value?.hexes.find((h) => h.q === pos.q && h.r === pos.r) ?? null;
-}
 
 function isCapturable(hex: Hex): boolean {
   const g = game.value;
@@ -114,21 +105,17 @@ function isAdjacentToMine(hex: Hex): boolean {
 
 function onHexClick(hex: Hex): void {
   if (playerId.value === null) return;
+  const send = Math.max(1, Math.min(army.value, myPlayer.value?.points ?? 0));
   if (hex.attackerId !== null) {
-    const send = Math.max(1, Math.min(army.value, myPlayer.value?.points ?? 0));
     if (hex.attackerId === playerId.value) {
       client.sendAttack(hex.q, hex.r, send);
     } else if (hex.ownerId === playerId.value || isAdjacentToMine(hex)) {
       client.sendDefend(hex.q, hex.r, send);
-    } else {
-      onSelect({ q: hex.q, r: hex.r });
     }
     return;
   }
   if (isCapturable(hex)) {
     client.sendCapture(hex.q, hex.r, army.value);
-  } else {
-    onSelect({ q: hex.q, r: hex.r });
   }
 }
 
@@ -141,7 +128,6 @@ function onPause(): void {
 }
 
 function goToMenu(): void {
-  selected.value = null;
   burgerOpen.value = false;
   screen.value = 'menu';
 }
@@ -171,7 +157,6 @@ function joinRoom(id: number): void {
 }
 
 function leaveRoom(): void {
-  selected.value = null;
   client.sendLeaveRoom();
 }
 
@@ -181,7 +166,6 @@ function startRoom(): void {
 
 function onToMenu(): void {
   if (!window.confirm('Выйти из комнаты? Игра продолжится с компьютером вместо вас.')) return;
-  selected.value = null;
   burgerOpen.value = false;
   client.sendToMenu();
 }
@@ -318,9 +302,8 @@ onBeforeUnmount(() => {
         :players="game.players"
         :capture-ticks="game.captureTicks"
         @click="onHexClick"
-        @select="onSelect"
       />
-      <ArmyBar v-if="game" :game="game" :hex="selected" :human-id="playerId" :army="army" @army-change="onArmyChange" />
+      <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
       <div v-if="room.log?.length" class="log-panel">
         <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
       </div>
