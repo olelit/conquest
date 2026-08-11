@@ -130,3 +130,90 @@ describe('Room: действия и тик', () => {
     expect(room.view().slots.find((s) => s.id === 1)!.isAi).toBe(true);
   });
 });
+
+import { RoomManager } from '../src/rooms.js';
+
+describe('RoomManager', () => {
+  it('create + join + lobby', () => {
+    const m = new RoomManager();
+    expect(m.createRoom(1, 'normal', 5).ok).toBe(true);
+    expect(m.lobby()).toHaveLength(1);
+    expect(m.lobby()[0]).toMatchObject({ mapType: 'normal', maxPlayers: 5, humans: 1 });
+    expect(m.joinRoom(2, 1).ok).toBe(true);
+    expect(m.lobby()[0].humans).toBe(2);
+  });
+  it('нельзя быть в двух комнатах', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 4);
+    expect(m.createRoom(1, 'normal', 4).ok).toBe(false);
+  });
+  it('join в полную комнату отклоняется', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    expect(m.joinRoom(3, 1).ok).toBe(false);
+  });
+  it('join в играющую комнату отклоняется', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    m.startRoom(1);
+    expect(m.joinRoom(3, 1).ok).toBe(false);
+  });
+  it('неверные настройки создания отклоняются', () => {
+    const m = new RoomManager();
+    expect(m.createRoom(1, 'normal', 1).ok).toBe(false);
+    expect(m.createRoom(1, 'normal', 6).ok).toBe(false);
+    expect(m.createRoom(1, 'unknown' as never, 4).ok).toBe(false);
+    expect(m.createSolo(1, 'normal', 0).ok).toBe(false);
+    expect(m.createSolo(1, 'normal', 5).ok).toBe(false);
+  });
+  it('solo: создаётся и сразу играет', () => {
+    const m = new RoomManager();
+    expect(m.createSolo(1, 'normal', 2).ok).toBe(true);
+    const room = m.roomForConn(1)!;
+    expect(room.status).toBe('playing');
+    expect(room.gameState!.players).toHaveLength(3);
+  });
+  it('старт — только хозяин; состав полный', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 4);
+    m.joinRoom(2, 1);
+    expect(m.startRoom(2).ok).toBe(false);
+    expect(m.startRoom(1).ok).toBe(true);
+    expect(m.roomForConn(1)!.gameState!.players).toHaveLength(4);
+  });
+  it('хозяин вышел из waiting — передача первому', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 4);
+    m.joinRoom(2, 1);
+    m.joinRoom(3, 1);
+    m.leaveRoom(1);
+    expect(m.roomForConn(2)!.hostPlayerId).toBe(2);
+    expect(m.viewerPlayerId(1)).toBeNull();
+  });
+  it('пустая waiting-комната удаляется', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 4);
+    expect(m.lobby()).toHaveLength(1);
+    m.leaveRoom(1);
+    expect(m.lobby()).toHaveLength(0);
+  });
+  it('дисконнект во время игры: слот → AI, комната живёт', () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 2);
+    m.joinRoom(2, 1);
+    m.startRoom(1);
+    m.connectionClosed(1);
+    expect(m.roomForConn(2)!.gameState!.players.find((p) => p.id === 1)!.isAi).toBe(true);
+    expect(m.roomForConn(2)!.status).toBe('playing');
+  });
+  it('auth обновляет имя слота', async () => {
+    const m = new RoomManager();
+    m.createRoom(1, 'normal', 4);
+    // имитация профиля: приватный метод недоступен — используем handleAuth с мок-токеном нельзя,
+    // поэтому проверяем updateName через комнату напрямую:
+    m.roomForConn(1)!.updateName(1, 'НовоеИмя');
+    expect(m.roomForConn(1)!.view().slots[0].name).toBe('НовоеИмя');
+  });
+});

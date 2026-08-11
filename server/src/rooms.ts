@@ -2,6 +2,9 @@ import { MAP_PRESETS, generateMap, type MapType } from './map.js';
 import * as rules from './rules.js';
 import type { GameState, HexState, PlayerState } from './rules.js';
 import { chooseAiAction, type AiAction } from './ai.js';
+import type { GoogleProfile } from './auth.js';
+import { verifyGoogleIdToken } from './auth.js';
+import { config } from './config.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -28,6 +31,14 @@ export interface RoomView {
 }
 
 export type ActionResult = { type: 'state' } | { type: 'error'; message: string };
+
+export interface RoomLobbyInfo {
+  id: number;
+  name: string;
+  mapType: MapType;
+  maxPlayers: number;
+  humans: number;
+}
 
 export class Room {
   status: RoomStatus = 'waiting';
@@ -293,4 +304,137 @@ export function randomCountryName(): string {
   const prefix = COUNTRY_PREFIXES[Math.floor(Math.random() * COUNTRY_PREFIXES.length)];
   const suffix = COUNTRY_SUFFIXES[Math.floor(Math.random() * COUNTRY_SUFFIXES.length)];
   return prefix + suffix;
+}
+
+export class RoomManager {
+  private rooms = new Map<number, Room>();
+  private connToRoom = new Map<number, number>();
+  private authProfiles = new Map<number, GoogleProfile>();
+  private nextRoomId = 1;
+
+  roomForConn(connId: number): Room | null {
+    const roomId = this.connToRoom.get(connId);
+    if (roomId === undefined) return null;
+    return this.rooms.get(roomId) ?? null;
+  }
+
+  viewerPlayerId(connId: number): number | null {
+    return this.roomForConn(connId)?.slotForConn(connId) ?? null;
+  }
+
+  authProfileFor(connId: number): GoogleProfile | null {
+    return this.authProfiles.get(connId) ?? null;
+  }
+
+  async handleAuth(connId: number, token: string): Promise<{ ok: boolean; error?: string }> {
+    const clientId = config.googleClientId;
+    if (!clientId) return { ok: false, error: 'Google-вход не настроен на сервере' };
+    if (!token) return { ok: false, error: 'Пустой токен' };
+    try {
+      const profile = await verifyGoogleIdToken(token, clientId);
+      if (!profile) return { ok: false, error: 'Не удалось проверить токен Google' };
+      this.authProfiles.set(connId, profile);
+      this.roomForConn(connId)?.updateName(connId, profile.name);
+      return { ok: true };
+    } catch (err) {
+      console.error('google auth failed:', err);
+      return { ok: false, error: 'Ошибка проверки токена' };
+    }
+  }
+
+  createRoom(connId: number, mapType: MapType, maxPlayers: number): { ok: true } | { ok: false; error: string } {
+    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    const preset = MAP_PRESETS[mapType];
+    if (!preset) return { ok: false, error: 'Неизвестный тип карты' };
+    if (!Number.isInteger(maxPlayers) || maxPlayers < preset.minPlayers || maxPlayers > preset.maxPlayers) {
+      return { ok: false, error: `Игроков должно быть от ${preset.minPlayers} до ${preset.maxPlayers}` };
+    }
+    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, maxPlayers, false, 1);
+    const slot = room.addHuman(this.connName(connId), connId);
+    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    this.rooms.set(room.id, room);
+    this.connToRoom.set(connId, room.id);
+    return { ok: true };
+  }
+
+  createSolo(connId: number, mapType: MapType, aiCount: number): { ok: true } | { ok: false; error: string } {
+    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    const preset = MAP_PRESETS[mapType];
+    if (!preset) return { ok: false, error: 'Неизвестный тип карты' };
+    if (!Number.isInteger(aiCount) || aiCount < 1 || aiCount > preset.maxPlayers - 1) {
+      return { ok: false, error: `Компьютеров должно быть от 1 до ${preset.maxPlayers - 1}` };
+    }
+    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount);
+    const slot = room.addHuman(this.connName(connId), connId);
+    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    this.rooms.set(room.id, room);
+    this.connToRoom.set(connId, room.id);
+    return room.start(connId);
+  }
+
+  joinRoom(connId: number, roomId: number): { ok: true } | { ok: false; error: string } {
+    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    const room = this.rooms.get(roomId);
+    if (!room || room.status !== 'waiting') return { ok: false, error: 'Комната не найдена' };
+    const slot = room.addHuman(this.connName(connId), connId);
+    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    this.connToRoom.set(connId, room.id);
+    return { ok: true };
+  }
+
+  leaveRoom(connId: number): void {
+    const room = this.roomForConn(connId);
+    if (!room) return;
+    this.connToRoom.delete(connId);
+    room.humanDisconnected(connId);
+    this.cleanupRoom(room);
+  }
+
+  startRoom(connId: number): { ok: true } | { ok: false; error: string } {
+    const room = this.roomForConn(connId);
+    if (!room) return { ok: false, error: 'Вы не в комнате' };
+    return room.start(connId);
+  }
+
+  handleAction(connId: number, msg: { type: string; q?: number; r?: number; points?: number; army?: number }): ActionResult {
+    const room = this.roomForConn(connId);
+    if (!room) return { type: 'error', message: 'Вы не в комнате' };
+    return room.handleAction(connId, msg.type, msg);
+  }
+
+  lobby(): RoomLobbyInfo[] {
+    const list: RoomLobbyInfo[] = [];
+    for (const room of this.rooms.values()) {
+      if (room.status !== 'waiting' || room.aiMode) continue;
+      list.push({
+        id: room.id,
+        name: room.name,
+        mapType: room.mapType,
+        maxPlayers: room.maxPlayers,
+        humans: room.humanCount,
+      });
+    }
+    return list;
+  }
+
+  tickAll(): void {
+    for (const room of this.rooms.values()) {
+      room.tick();
+    }
+  }
+
+  connectionClosed(connId: number): void {
+    this.leaveRoom(connId);
+    this.authProfiles.delete(connId);
+  }
+
+  private cleanupRoom(room: Room): void {
+    if (room.status === 'waiting' && room.isEmpty) {
+      this.rooms.delete(room.id);
+    }
+  }
+
+  private connName(connId: number): string {
+    return this.authProfiles.get(connId)?.name ?? 'Игрок';
+  }
 }
