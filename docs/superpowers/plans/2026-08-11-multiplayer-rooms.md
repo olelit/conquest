@@ -516,15 +516,27 @@ function hexDistance(a: { q: number; r: number }, b: { q: number; r: number }): 
   });
 ```
 
-- [ ] **Step 3: Прогнать тесты и сборку**
+- [ ] **Step 3: Починить вызов в game.ts (сборка)**
+
+`server/src/game.ts` (удаляется в Task 6, но должен компилироваться до тех пор) вызывает ИИ со старым параметром. Замени в `server/src/game.ts`:
+
+```ts
+        const aiAction = chooseAiAction(this.state, this.aiId, this.humanId);
+```
+на:
+```ts
+        const aiAction = chooseAiAction(this.state, this.aiId);
+```
+
+- [ ] **Step 4: Прогнать тесты и сборку**
 
 Run: `npm test && npm run build` (workdir: `server`)
 Expected: PASS, tsc без ошибок.
 
-- [ ] **Step 4: Коммит**
+- [ ] **Step 5: Коммит**
 
 ```bash
-git add server/src/ai.ts server/test/ai.test.ts
+git add server/src/ai.ts server/src/game.ts server/test/ai.test.ts
 git commit -m "feat: ИИ для N игроков — враг любой другой игрок"
 ```
 
