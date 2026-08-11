@@ -68,7 +68,7 @@ const viewBox = computed(() => {
 });
 
 watch(baseViewBox, (b) => {
-  view.value = { ...b };
+  if (view.value === null) view.value = { ...b };
 });
 
 const mapWrap = ref<HTMLDivElement | null>(null);
@@ -137,7 +137,8 @@ const tooltipPos = computed(() => {
   const center = hexCenter(hex.q, hex.r);
   const left = ((center.x - v.x) / v.w) * rect.width;
   const top = ((center.y - v.y) / v.h) * rect.height;
-  return { left, top: Math.max(70, top) };
+  const clampedLeft = Math.min(Math.max(left, 75), Math.max(75, rect.width - 75));
+  return { left: clampedLeft, top: Math.max(70, top) };
 });
 
 function terrainFill(hex: Hex): string {
