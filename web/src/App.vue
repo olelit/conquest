@@ -194,12 +194,14 @@ onBeforeUnmount(() => {
     <template v-else-if="game">
       <div class="app__header">
         <h1>Conquest</h1>
-        <button class="app__btn" :disabled="!connected" @click="onPause">
-          {{ game.paused ? 'Продолжить' : 'Пауза' }}
-        </button>
-        <button class="app__btn app__burger" :disabled="!connected" @click="burgerOpen = !burgerOpen">
-          ☰
-        </button>
+        <div class="app__controls">
+          <button class="app__btn" :disabled="!connected" @click="onPause">
+            {{ game.paused ? 'Продолжить' : 'Пауза' }}
+          </button>
+          <button class="app__btn app__burger" :disabled="!connected" @click="burgerOpen = !burgerOpen">
+            ☰
+          </button>
+        </div>
       </div>
       <div v-if="game.paused && !winner" class="banner banner--pause">Пауза</div>
       <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
@@ -246,10 +248,16 @@ onBeforeUnmount(() => {
 }
 
 .app__header {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.app__controls {
+  display: flex;
+  gap: 8px;
 }
 
 .app__header h1 {
