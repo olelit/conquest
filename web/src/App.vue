@@ -55,6 +55,17 @@ const createOptions = computed(() => {
   return opts;
 });
 
+watch(aiMapType, () => {
+  if (aiCount.value > aiMax.value) aiCount.value = aiMax.value;
+  if (aiCount.value < 1) aiCount.value = 1;
+});
+
+watch(createMapType, () => {
+  const info = MAP_INFO[createMapType.value];
+  if (createMaxPlayers.value > info.maxPlayers) createMaxPlayers.value = info.maxPlayers;
+  if (createMaxPlayers.value < info.minPlayers) createMaxPlayers.value = info.minPlayers;
+});
+
 watch(
   () => myPlayer.value?.points ?? 0,
   (points) => {
