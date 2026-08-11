@@ -340,7 +340,7 @@ export class GameService {
         this.addLog(`${this.playerMeta(claim.ownerId).name} окружил и захватил ${claim.hexes.length} клеток`);
       }
       if (this.mode === 'ai') {
-        const aiAction = chooseAiAction(this.state, this.aiId, this.humanId);
+        const aiAction = chooseAiAction(this.state, this.aiId);
         if (aiAction) {
           this.applyAiAction(aiAction);
         }
