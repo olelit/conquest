@@ -111,9 +111,9 @@ export function validateAttack(state: GameState, playerId: number, q: number, r:
   const hex = findHex(state, q, r);
   if (!hex) return { ok: false, error: 'Гекс не найден' };
   if (hex.ownerId !== null && hex.ownerId === playerId) return { ok: false, error: 'Нельзя атаковать свой гекс' };
-  if (hex.ownerId === null) return { ok: false, error: 'Нейтральный гекс захватывается, а не атакуется' };
+  if (hex.ownerId === null && hex.attackerId !== playerId) return { ok: false, error: 'Нейтральный гекс захватывается, а не атакуется' };
   if (hex.attackerId !== null && hex.attackerId !== playerId) return { ok: false, error: 'Битву уже ведёт соперник' };
-  if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
+  if (hex.attackerId !== playerId && !hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
   if (hex.attackerId !== playerId && points < terrainCost(hex.terrain)) {
     return { ok: false, error: 'Минимальное вложение в атаку — стоимость гекса' };
   }

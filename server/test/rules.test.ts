@@ -176,6 +176,13 @@ describe('атака на гекс соперника', () => {
     expect(findHex(s, 6, 5)!.attackInvestment).toBe(150);
     expect(s.players[0].points).toBe(950);
   });
+  it('атакующий может долить в свою атаку на нейтральном спорном гексе', () => {
+    const s = makeState([{ q: 4, r: 5, attackerId: P, attackInvestment: 300, defenseInvestment: 200 }]);
+    expect(validateAttack(s, P, 4, 5, 100).ok).toBe(true);
+    applyAttack(s, P, 4, 5, 100);
+    expect(findHex(s, 4, 5)!.attackInvestment).toBe(400);
+    expect(validateAttack(s, AI, 4, 5, 100).ok).toBe(false);
+  });
   it('первая атака требует минимум — стоимость гекса', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, terrain: 'mountain', ownerId: AI }]);
     expect(validateAttack(s, P, 6, 5, 449).ok).toBe(false);
