@@ -27,7 +27,6 @@ export function chooseAiAction(state: GameState, aiId: number, playerId: number)
       const invest = Math.min(ai.points, hex.attackInvestment - hex.defenseInvestment + 1);
       if (invest >= 1) return { type: 'defend', q: hex.q, r: hex.r, points: invest };
     }
-    return null;
   }
 
   for (const hex of state.hexes) {
@@ -38,10 +37,9 @@ export function chooseAiAction(state: GameState, aiId: number, playerId: number)
     }
   }
 
-  const ownMaxCost = Math.max(0, ...state.hexes.filter((h) => h.ownerId === aiId).map((h) => terrainCost(h.terrain)));
   const affordableNeutral = state.hexes
     .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
-    .filter((hex) => terrainCost(hex.terrain) + ownMaxCost <= ai.points)
+    .filter((hex) => terrainCost(hex.terrain) <= ai.points)
     .sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain));
   if (affordableNeutral.length > 0) {
     const hex = affordableNeutral[0];

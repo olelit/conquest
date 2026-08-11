@@ -34,9 +34,9 @@ describe('chooseAiAction', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 400, defenseInvestment: 100 }], 1000, 1000);
     expect(chooseAiAction(s, AI, P)).toEqual({ type: 'defend', q: 6, r: 5, points: 301 });
   });
-  it('приоритет 2: не отвечает, когда оборона уже сильнее', () => {
+  it('приоритет 2: оборона сильнее — не топ-апится, а занимается расширением', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 100, defenseInvestment: 400 }]);
-    expect(chooseAiAction(s, AI, P)).toBeNull();
+    expect(chooseAiAction(s, AI, P)).toEqual({ type: 'capture', q: 6, r: 4 });
   });
   it('приоритет 3: топ-ап своей атаки, если враг контрит', () => {
     const s = makeState([{ q: 5, r: 5, attackerId: AI, defenseInvestment: 400, attackInvestment: 100 }, { q: 6, r: 5, ownerId: AI }]);
@@ -55,7 +55,15 @@ describe('chooseAiAction', () => {
     expect(chooseAiAction(s, AI, P)).toBeNull();
   });
   it('приоритет 5: атакует границу врага за стоимость гекса, когда нечего захватывать', () => {
-    const s = makeState([{ q: 6, r: 5, ownerId: AI, terrain: 'mountain' }, { q: 5, r: 5, ownerId: P }], 450);
+    const s = makeState([
+      { q: 6, r: 5, ownerId: AI, terrain: 'mountain' },
+      { q: 5, r: 5, ownerId: P },
+      { q: 7, r: 5, terrain: 'mountain' },
+      { q: 6, r: 4, terrain: 'mountain' },
+      { q: 6, r: 6, terrain: 'mountain' },
+      { q: 7, r: 4, terrain: 'mountain' },
+      { q: 5, r: 6, terrain: 'mountain' },
+    ], 400);
     expect(chooseAiAction(s, AI, P)).toEqual({ type: 'attack', q: 5, r: 5, points: 150 });
   });
   it('приоритет 5: не атакует, если очков меньше стоимости гекса', () => {
