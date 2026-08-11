@@ -114,6 +114,9 @@ export function validateAttack(state: GameState, playerId: number, q: number, r:
   if (hex.ownerId === null) return { ok: false, error: 'Нейтральный гекс захватывается, а не атакуется' };
   if (hex.attackerId !== null && hex.attackerId !== playerId) return { ok: false, error: 'Битву уже ведёт соперник' };
   if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
+  if (hex.attackerId !== playerId && points < terrainCost(hex.terrain)) {
+    return { ok: false, error: 'Минимальное вложение в атаку — стоимость гекса' };
+  }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: 'Игрок не найден' };
   if (player.points < points) return { ok: false, error: 'Не хватает очков' };
@@ -148,7 +151,7 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
   player.points -= cost;
   if (hasAdjacentOwner(state, q, r, opponentId(state, playerId))) {
     hex.attackerId = playerId;
-    hex.attackInvestment = cost;
+    hex.attackInvestment = Math.max(1, cost);
     hex.defenderId = null;
     hex.defenseInvestment = 0;
     hex.battleProgress = 0;
@@ -165,24 +168,25 @@ export function applyAttack(state: GameState, playerId: number, q: number, r: nu
   const hex = findHex(state, q, r)!;
   const player = state.players.find((p) => p.id === playerId)!;
   player.points -= points;
+  const wasZero = hex.attackInvestment === 0;
   hex.attackInvestment += points;
   if (hex.attackerId === null) {
     hex.attackerId = playerId;
     hex.defenderId = hex.ownerId;
-    hex.battleProgress = 0;
   }
-  hex.battleProgress = 0;
+  if (wasZero) hex.battleProgress = 0;
 }
 
 export function applyDefend(state: GameState, playerId: number, q: number, r: number, points: number): void {
   const hex = findHex(state, q, r)!;
   const player = state.players.find((p) => p.id === playerId)!;
   player.points -= points;
+  const wasZero = hex.defenseInvestment === 0;
   hex.defenseInvestment += points;
   if (hex.defenderId === null) {
     hex.defenderId = playerId;
   }
-  hex.battleProgress = 0;
+  if (wasZero) hex.battleProgress = 0;
 }
 
 export interface BattleResult {

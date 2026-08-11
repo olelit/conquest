@@ -139,12 +139,12 @@ describe('захват нейтрального гекса у границы с�
     applyCapture(s, P, 6, 5);
     expect(findHex(s, 6, 5)!.ownerId).toBe(P);
   });
-  it('бесплатный первый гекс у границы ИИ — битва с нулевым вложением', () => {
+  it('бесплатный первый гекс у границы ИИ — битва с вложением 1 очко', () => {
     const s = makeState([{ q: 6, r: 5, ownerId: AI }]);
     applyCapture(s, P, 5, 5);
     const hex = findHex(s, 5, 5)!;
     expect(hex.attackerId).toBe(P);
-    expect(hex.attackInvestment).toBe(0);
+    expect(hex.attackInvestment).toBe(1);
   });
 });
 
@@ -153,7 +153,7 @@ describe('атака на гекс соперника', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 7, r: 5, ownerId: AI }]);
     expect(validateAttack(s, P, 7, 5, 100).ok).toBe(false);
     const s2 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI }]);
-    expect(validateAttack(s2, P, 6, 5, 100).ok).toBe(true);
+    expect(validateAttack(s2, P, 6, 5, 150).ok).toBe(true);
   });
   it('требует очки и целое число ≥ 1', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI }]);
@@ -175,6 +175,27 @@ describe('атака на гекс соперника', () => {
     applyAttack(s, P, 6, 5, 50);
     expect(findHex(s, 6, 5)!.attackInvestment).toBe(150);
     expect(s.players[0].points).toBe(950);
+  });
+  it('первая атака требует минимум — стоимость гекса', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, terrain: 'mountain', ownerId: AI }]);
+    expect(validateAttack(s, P, 6, 5, 449).ok).toBe(false);
+    expect(validateAttack(s, P, 6, 5, 450).ok).toBe(true);
+  });
+  it('долив в свою атаку может быть меньше стоимости', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 500 }]);
+    expect(validateAttack(s, P, 6, 5, 10).ok).toBe(true);
+  });
+  it('вложение защитника во время захвата атакующего сбрасывает прогресс', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300, battleProgress: 2 }]);
+    applyDefend(s, AI, 6, 5, 100);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(0);
+    expect(findHex(s, 6, 5)!.defenseInvestment).toBe(100);
+  });
+  it('долив атакующего, пока он сам захватывает, не сбрасывает прогресс', () => {
+    const s = makeState([{ q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 300, battleProgress: 2 }]);
+    applyAttack(s, P, 6, 5, 100);
+    expect(findHex(s, 6, 5)!.battleProgress).toBe(2);
+    expect(findHex(s, 6, 5)!.attackInvestment).toBe(400);
   });
 });
 
