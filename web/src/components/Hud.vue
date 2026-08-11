@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { playerColor, type GameState, type Player } from '../types';
 
-const props = defineProps<{ game: GameState; humanId: number | null }>();
+const props = defineProps<{ game: GameState; humanId: number | null; army: number }>();
 
 const players = computed(() => {
   if (props.humanId === null) return props.game.players;
@@ -13,6 +13,13 @@ const players = computed(() => {
 
 function colorOf(p: Player): string {
   return playerColor(p.id);
+}
+
+function pointsText(p: Player): string {
+  if (p.id === props.humanId) {
+    return `${Math.max(0, p.points - props.army)}/${p.limit}`;
+  }
+  return `${p.points}/${p.limit}`;
 }
 </script>
 
@@ -26,7 +33,7 @@ function colorOf(p: Player): string {
     >
       <span class="player-list__name" :style="{ color: colorOf(p) }">{{ p.name }}</span>
       <span class="player-list__hexes">{{ p.hexCount }} кл.</span>
-      <span class="player-list__points">{{ p.points }}</span>
+      <span class="player-list__points">{{ pointsText(p) }}</span>
       <span class="player-list__income">+{{ p.income }}/сек</span>
     </div>
   </div>

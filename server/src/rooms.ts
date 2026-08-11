@@ -22,6 +22,7 @@ export interface ViewPlayer {
   points: number;
   hexCount: number;
   income: number;
+  limit: number;
   isAi: boolean;
 }
 
@@ -277,6 +278,7 @@ export class Room {
               points: p.points,
               hexCount: rules.hexCount(this.state!, p.id),
               income: rules.playerIncome(this.state!, p.id),
+              limit: rules.pointLimit(rules.hexCount(this.state!, p.id)),
               isAi: p.isAi ?? false,
             })),
             hexes: this.state.hexes,

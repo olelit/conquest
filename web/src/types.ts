@@ -42,6 +42,7 @@ export interface Player {
   points: number;
   hexCount: number;
   income: number;
+  limit: number;
   isAi: boolean;
 }
 

@@ -8,6 +8,8 @@ const emit = defineEmits<{ armyChange: [points: number] }>();
 
 const human = computed(() => props.game.players.find((p) => p.id === props.humanId) ?? null);
 const max = computed(() => human.value?.points ?? 0);
+const available = computed(() => Math.max(0, (human.value?.points ?? 0) - props.army));
+const limit = computed(() => human.value?.limit ?? 0);
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(max.value, Math.floor(Number.isFinite(value) ? value : 0)));
@@ -36,7 +38,7 @@ function step(delta: number): void {
         @change="change(Number(($event.target as HTMLInputElement).value))"
       />
       <button class="army-bar__btn" @click="step(50)">+</button>
-      <span class="army-bar__hint">атакующих · макс {{ max }}</span>
+      <span class="army-bar__hint">атакующих · доступно {{ available }}/{{ limit }}</span>
     </div>
   </div>
 </template>

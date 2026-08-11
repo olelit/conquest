@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
         <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
         <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
-        <Hud v-if="game" :game="game" :human-id="playerId" />
+        <Hud v-if="game" :game="game" :human-id="playerId" :army="army" />
         <HexMap
           v-if="game"
           :hexes="game.hexes"
