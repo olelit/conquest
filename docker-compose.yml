@@ -26,8 +26,23 @@ services:
       PGUSER: conquest
       PGPASSWORD: conquest
       PGDATABASE: conquest_db
+      # Google OAuth: client ID из Google Cloud Console (OAuth 2.0 Client ID для веб-приложения)
+      # GOOGLE_CLIENT_ID: your-client-id.apps.googleusercontent.com
+      # Игровые конфиги (необязательно, используются значения по умолчанию):
+      # CONQUEST_MINE_CHANCE: 0.1
+      # CONQUEST_COST_GRASS: 150
+      # CONQUEST_COST_DESERT: 200
+      # CONQUEST_COST_FOREST: 250
+      # CONQUEST_COST_WATER: 350
+      # CONQUEST_COST_MOUNTAIN: 450
+      # CONQUEST_COST_MINE: 450
+      # CONQUEST_BASE_POINTS: 1000
+      # CONQUEST_LIMIT_PER_HEX: 50
+      # CONQUEST_INCOME_PER_HEX: 3
+      # CONQUEST_MINE_INCOME_BONUS: 3
       # CONQUEST_DRAIN_PER_TICK: 10
       # CONQUEST_CAPTURE_TICKS: 5
+      # CONQUEST_TICK_INTERVAL_MS: 1000
     volumes:
       - ./server:/app
       - /app/node_modules

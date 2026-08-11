@@ -1,9 +1,8 @@
 import http from 'http';
 import express from 'express';
-import { closeDb, hexesRepository, initDb } from './db.js';
+import { closeDb, initDb } from './db.js';
 import { config } from './config.js';
-import { generateMap, MAP_COLUMNS, MAP_ROWS } from './map.js';
-import { GameService } from './game.js';
+import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -26,29 +25,6 @@ async function connectWithRetry(): Promise<void> {
   }
 }
 
-async function seedIfEmpty(): Promise<void> {
-  const count = await hexesRepository.count();
-  if (count === 0) {
-    const hexes = generateMap('normal');
-    await hexesRepository.insertMany(
-      hexes.map((h) => ({
-        q: h.q,
-        r: h.r,
-        terrain: h.terrain,
-        ownerId: null,
-        attackerId: null,
-        defenderId: null,
-        attackInvestment: 0,
-        defenseInvestment: 0,
-        battleProgress: 0,
-      })),
-    );
-    console.log(`Seeded map with ${hexes.length} hexes`);
-  } else {
-    console.log(`Map already seeded (${count} hexes)`);
-  }
-}
-
 async function main(): Promise<void> {
   const app = express();
 
@@ -57,25 +33,16 @@ async function main(): Promise<void> {
   });
 
   await connectWithRetry();
-  await seedIfEmpty();
 
-  const service = await GameService.create();
-  console.log(`Game started: human=${service.humanId}, ai=${service.aiId}`);
+  const manager = new RoomManager();
+  console.log('Conquest server ready: rooms in memory');
 
   const server = http.createServer(app);
-  const broadcast = attachWs(server, service);
+  const broadcast = attachWs(server, manager);
 
-  let ticking = false;
   setInterval(() => {
-    if (ticking) return;
-    ticking = true;
-    service
-      .tick()
-      .then(() => broadcast())
-      .catch((err) => console.error('tick failed:', err))
-      .finally(() => {
-        ticking = false;
-      });
+    manager.tickAll();
+    broadcast();
   }, TICK_INTERVAL_MS);
 
   server.listen(PORT, () => console.log(`API listening on port ${PORT}`));
