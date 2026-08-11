@@ -42,7 +42,7 @@ services:
       # CONQUEST_MINE_INCOME_BONUS: 3
       # CONQUEST_DRAIN_PER_TICK: 10
       # CONQUEST_CAPTURE_TICKS: 5
-      # CONQUEST_TICK_INTERVAL_MS: 1000
+      # CONQUEST_TICK_INTERVAL_MS: 500
     volumes:
       - ./server:/app
       - /app/node_modules

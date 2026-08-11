@@ -25,6 +25,6 @@ export const config = {
   mineIncomeBonus: number('CONQUEST_MINE_INCOME_BONUS', 3),
   captureTicks: number('CONQUEST_CAPTURE_TICKS', 5),
   drainPerTick: number('CONQUEST_DRAIN_PER_TICK', 10),
-  tickIntervalMs: number('CONQUEST_TICK_INTERVAL_MS', 1000),
+  tickIntervalMs: number('CONQUEST_TICK_INTERVAL_MS', 500),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
 };
