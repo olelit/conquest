@@ -153,6 +153,7 @@ describe('отрезание территории', () => {
       { q: 5, r: 2, ownerId: P }, { q: 6, r: 2, ownerId: P }, { q: 7, r: 2, ownerId: P },
     ]);
     s.players[0].capital = { q: 2, r: 2 };
+    s.hexes.find((h) => h.q === 4 && h.r === 2)!.ownerId = null; // шейку уже захватил враг
     const cut = applyCut(s, P);
     expect(cut.map((h) => `${h.q},${h.r}`).sort()).toEqual(['5,2', '6,2', '7,2'].sort());
     expect(s.hexes.find((h) => h.q === 5 && h.r === 2)!.ownerId).toBeNull();
@@ -285,10 +286,10 @@ describe('выбытие', () => {
   });
   it('10% — территория делится на ИИ поровну, остаток нейтральный', () => {
     const hexes: Partial<HexState>[] = [];
-    for (let i = 0; i < 21; i++) hexes.push({ q: 5 + i, r: 5, ownerId: P });
+    for (let i = 0; i < 22; i++) hexes.push({ q: i % 16, r: 5 + Math.floor(i / 16), ownerId: P });
     const s = makeState(hexes);
     s.players[0].capital = { q: 5, r: 5 };
-    s.hexes.find((h) => h.q === 5 && h.r === 5)!.ownerId = AI;
+    s.hexes.find((h) => h.q === 5 && h.r === 5)!.ownerId = AI; // столица захвачена, владений 21
     const res = eliminateIfCapitalLost(s, P, () => 0.05)!;
     expect(res.newAis).toHaveLength(2);
     expect(res.newAis[0].hexes).toHaveLength(10);
@@ -298,7 +299,7 @@ describe('выбытие', () => {
     for (const ai of res.newAis) {
       for (const hex of ai.hexes) expect(hex.ownerId).toBe(ai.id);
     }
-    expect(s.hexes.find((h) => h.q === 25 && h.r === 5)!.ownerId).toBeNull();
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 6)!.ownerId).toBeNull(); // остаток нейтральный
   });
   it('выбывший повторно не выбывает', () => {
     const s = makeState([]);
