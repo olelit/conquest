@@ -149,7 +149,17 @@ export class Room {
       points: rules.BASE_POINTS,
       isAi: s.isAi,
     }));
-    const hexes: HexState[] = generateMap(this.mapType).map((h) => ({
+    const hexes = this.buildHexes();
+    const preset = MAP_PRESETS[this.mapType];
+    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
+    this.status = 'playing';
+    this.paused = false;
+    this.addLog('Новая игра началась');
+    return { ok: true };
+  }
+
+  private buildHexes(): HexState[] {
+    return generateMap(this.mapType).map((h) => ({
       q: h.q,
       r: h.r,
       terrain: h.terrain,
@@ -160,11 +170,24 @@ export class Room {
       defenseInvestment: 0,
       battleProgress: 0,
     }));
+  }
+
+  restart(): { ok: true } | { ok: false; error: string } {
+    if (!this.aiMode) return { ok: false, error: 'Перезапуск доступен только в игре с компьютером' };
+    if (this.status !== 'playing' || !this.state) return { ok: false, error: 'Игра ещё не началась' };
+    this.slots = this.slots.filter((s) => !this.eliminationSpawned.has(s.id));
+    const players: PlayerState[] = this.slots.map((s) => ({
+      id: s.id,
+      name: s.name,
+      points: rules.BASE_POINTS,
+      isAi: s.isAi,
+    }));
     const preset = MAP_PRESETS[this.mapType];
-    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
-    this.status = 'playing';
+    this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.paused = false;
-    this.addLog('Новая игра началась');
+    this.finishedAt = null;
+    this.aiLastActionAt.clear();
+    this.addLog('Игра перезапущена');
     return { ok: true };
   }
 
@@ -503,6 +526,12 @@ export class RoomManager {
     const room = this.roomForConn(connId);
     if (!room) return { ok: false, error: 'Вы не в комнате' };
     return room.start(connId);
+  }
+
+  restart(connId: number): { ok: true } | { ok: false; error: string } {
+    const room = this.roomForConn(connId);
+    if (!room) return { ok: false, error: 'Вы не в комнате' };
+    return room.restart();
   }
 
   handleAction(connId: number, msg: { type: string; q?: number; r?: number; points?: number; army?: number }): ActionResult {

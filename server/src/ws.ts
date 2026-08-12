@@ -102,6 +102,12 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             else sendError(ws, result.error);
             return;
           }
+          case 'restart': {
+            const result = manager.restart(connId);
+            if (result.ok) broadcast();
+            else sendError(ws, result.error);
+            return;
+          }
         }
         const result = manager.handleAction(connId, message);
         if (result.type === 'state') {

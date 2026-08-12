@@ -322,3 +322,46 @@ describe('RoomManager', () => {
     expect(m.roomCount).toBe(1);
   });
 });
+
+describe('Room: перезапуск', () => {
+  it('рестарт только в соло-режиме', () => {
+    const room = makeRoom(false, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    expect(room.restart().ok).toBe(false);
+  });
+  it('рестарт сбрасывает состояние', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    room.handleAction(1, 'capture', { q: 0, r: 0 });
+    room.tick();
+    expect(room.view().game!.players[0].hexCount).toBe(1);
+    expect(room.restart().ok).toBe(true);
+    const g = room.view().game!;
+    expect(g.players[0].hexCount).toBe(0);
+    expect(g.players[0].points).toBe(1000);
+    expect(g.winnerId).toBeNull();
+    expect(g.players).toHaveLength(2);
+  });
+  it('рестарт убирает порождённых ИИ и чинит паузу', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.05);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    for (let i = 1; i <= 20; i++) g.hexes[i].ownerId = 1;
+    g.hexes[0].attackerId = 2;
+    g.hexes[0].attackInvestment = 500;
+    g.hexes[0].defenseInvestment = 0;
+    g.hexes[0].battleProgress = rules.CAPTURE_TICKS - 1;
+    room.tick();
+    expect(g.players).toHaveLength(4);
+    room.paused = true;
+    expect(room.restart().ok).toBe(true);
+    expect(room.view().game!.players).toHaveLength(2);
+    expect(room.paused).toBe(false);
+    expect(room.view().game!.winnerId).toBeNull();
+  });
+});
