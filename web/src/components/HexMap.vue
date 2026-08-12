@@ -237,6 +237,10 @@ function captureState(hex: Hex): { byId: number; progress: number } | null {
   return { byId: hex.defenderId, progress: -hex.battleProgress };
 }
 
+function capitalPlayer(hex: Hex): Player | null {
+  return props.players.find((p) => p.capital !== null && p.capital.q === hex.q && p.capital.r === hex.r) ?? null;
+}
+
 const tooltipPos = computed(() => {
   const hex = hovered.value;
   if (!hex) return null;
@@ -301,6 +305,13 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           :class="{ 'hex-flash': flashKeys.has(hex.q + ',' + hex.r) }"
           class="hex-tint"
         />
+        <text
+          v-if="capitalPlayer(hex)"
+          :x="hexCenter(hex.q, hex.r).x"
+          :y="hexCenter(hex.q, hex.r).y + 11"
+          text-anchor="middle"
+          class="hex-capital"
+        >★</text>
         <polygon
           v-if="battleOverlay(hex)"
           :points="hexPoints(hex.q, hex.r).points"
@@ -328,7 +339,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
         <span class="battle-tooltip__pool">{{ TERRAIN_COSTS[hovered.terrain] }}</span>
       </div>
       <div class="battle-tooltip__row">
-        <span>Владелец: {{ playerName(hovered.ownerId) }}</span>
+        <span>Владелец: {{ playerName(hovered.ownerId) }}{{ capitalPlayer(hovered) ? ' ★ столица' : '' }}</span>
       </div>
       <template v-if="hovered.attackerId !== null">
         <div class="battle-tooltip__row">
@@ -410,6 +421,14 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 .hex-capture-ring {
   fill: none;
   stroke-width: 3;
+  pointer-events: none;
+}
+
+.hex-capital {
+  font-size: 26px;
+  fill: #ffd54f;
+  stroke: #1a1a1a;
+  stroke-width: 1.5;
   pointer-events: none;
 }
 
