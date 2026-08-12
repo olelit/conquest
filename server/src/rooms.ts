@@ -71,6 +71,7 @@ export class Room {
   private log: string[] = [];
   private eliminationSpawned = new Set<number>();
   private aiLastActionAt = new Map<number, number>();
+  private lastCapturerId: number | null = null;
 
   constructor(
     readonly id: number,
@@ -154,6 +155,7 @@ export class Room {
     this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.status = 'playing';
     this.paused = false;
+    this.lastCapturerId = null;
     this.addLog('Новая игра началась');
     return { ok: true };
   }
@@ -189,6 +191,7 @@ export class Room {
     this.aiLastActionAt.clear();
     this.log = [];
     this.eliminationSpawned.clear();
+    this.lastCapturerId = null;
     this.addLog('Игра перезапущена');
     return { ok: true };
   }
@@ -213,12 +216,32 @@ export class Room {
     for (const result of results) {
       if (result.loserId !== undefined) this.handlePlayerLoss(result.loserId);
     }
+    for (const result of results) {
+      if (result.loserId === undefined || result.winnerId === null) continue;
+      const loser = state.players.find((p) => p.id === result.loserId);
+      if (loser?.capital && loser.capital.q === result.q && loser.capital.r === result.r) {
+        this.lastCapturerId = result.winnerId;
+      }
+    }
     const claims = rules.applyEnclosure(state);
     for (const claim of claims) {
       this.addLog(`${this.playerName(claim.ownerId)} окружил и захватил ${claim.hexes.length} клеток`);
     }
     for (const claim of claims) {
       if (claim.prevOwnerId !== null) this.handlePlayerLoss(claim.prevOwnerId);
+    }
+    for (const player of state.players) {
+      if (!player.eliminated) continue;
+      for (const hex of state.hexes) {
+        if (hex.ownerId === player.id) hex.ownerId = null;
+      }
+    }
+    if (
+      state.winnerId === null &&
+      this.lastCapturerId !== null &&
+      state.players.every((p) => p.eliminated || rules.hexCount(state, p.id) === 0)
+    ) {
+      state.winnerId = this.lastCapturerId;
     }
     const now = Date.now();
     for (const player of state.players) {
@@ -266,6 +289,7 @@ export class Room {
           state.winnerId = elim.capturerId;
         }
       }
+      if (elim.capturerId !== null) this.lastCapturerId = elim.capturerId;
     } else {
       const cut = rules.applyCut(state, playerId);
       if (cut.length > 0) {

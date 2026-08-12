@@ -388,3 +388,36 @@ describe('Room: перезапуск', () => {
     expect(room.view().game!.winnerId).toBeNull();
   });
 });
+
+describe('Room: взаимное выбытие', () => {
+  it('все выбыли в один тик: победитель — последний захвативший столицу', () => {
+    const room = new Room(1, 'Тест', 'normal', 4, false, 1);
+    room.addHuman('A', 1);
+    room.addHuman('B', 2);
+    room.start(1);
+    const g = room.gameState!;
+    const humanCap = g.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    const aiCap = g.hexes.find((h) => h.q === 6 && h.r === 5)!;
+    humanCap.ownerId = 1;
+    aiCap.ownerId = 2;
+    g.players[0].capital = { q: 5, r: 5 };
+    g.players[1].capital = { q: 6, r: 5 };
+    // битва за столицу игрока 1 (атакует игрок 2)
+    humanCap.attackerId = 2;
+    humanCap.defenderId = 1;
+    humanCap.attackInvestment = 500;
+    humanCap.defenseInvestment = 0;
+    humanCap.battleProgress = rules.CAPTURE_TICKS - 1;
+    // битва за столицу игрока 2 (атакует игрок 1)
+    aiCap.attackerId = 1;
+    aiCap.defenderId = 2;
+    aiCap.attackInvestment = 500;
+    aiCap.defenseInvestment = 0;
+    aiCap.battleProgress = rules.CAPTURE_TICKS - 1;
+    room.tick();
+    expect(g.players[0].eliminated).toBe(true);
+    expect(g.players[1].eliminated).toBe(true);
+    // последний обработанный захват — столицы (6,5) игроком 1 (порядок гексов в массиве)
+    expect(g.winnerId).toBe(1);
+  });
+});

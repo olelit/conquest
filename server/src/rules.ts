@@ -457,12 +457,5 @@ export function computeWinner(state: GameState): void {
   const remaining = state.players.filter((p) => !p.eliminated);
   if (remaining.length === 1 && hexCount(state, remaining[0].id) > 0) {
     state.winnerId = remaining[0].id;
-    return;
-  }
-  if (remaining.length === 0) {
-    const top = state.players
-      .filter((p) => hexCount(state, p.id) > 0)
-      .sort((a, b) => hexCount(state, b.id) - hexCount(state, a.id))[0];
-    if (top) state.winnerId = top.id;
   }
 }
