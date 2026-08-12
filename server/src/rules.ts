@@ -35,6 +35,7 @@ export interface GameState {
   columns: number;
   rows: number;
   winnerId: number | null;
+  qOffset?: number;
 }
 
 const NEIGHBOR_OFFSETS: [number, number][] = [
@@ -55,7 +56,8 @@ export function hexCount(state: GameState, playerId: number): number {
 }
 
 export function isInBounds(state: GameState, q: number, r: number): boolean {
-  return q >= 0 && q < state.columns && r >= 0 && r < state.rows;
+  const q0 = state.qOffset ?? 0;
+  return q >= q0 && q < q0 + state.columns && r >= 0 && r < state.rows;
 }
 
 export function isAdjacent(a: { q: number; r: number }, b: { q: number; r: number }): boolean {

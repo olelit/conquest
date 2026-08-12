@@ -354,10 +354,10 @@ describe('тик битвы: перевес двигает захват', () => 
 });
 
 describe('экономика', () => {
-  it('доход 3 очка за гекс с учётом лимита', () => {
+  it('доход 2 очка за гекс с учётом лимита', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: P }, { q: 4, r: 5, ownerId: P }]);
     applyIncome(s);
-    expect(s.players[0].points).toBe(1009);
+    expect(s.players[0].points).toBe(1006);
     const big = makeState();
     for (let i = 0; i < 40; i++) big.hexes[i].ownerId = P;
     big.players[0].points = 2970;
@@ -366,9 +366,9 @@ describe('экономика', () => {
   });
   it('шахта даёт больше дохода', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, terrain: 'mine', ownerId: P }]);
-    expect(playerIncome(s, P)).toBe(9);
+    expect(playerIncome(s, P)).toBe(7);
     applyIncome(s);
-    expect(s.players[0].points).toBe(1009);
+    expect(s.players[0].points).toBe(1007);
   });
 });
 

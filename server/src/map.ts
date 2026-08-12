@@ -17,42 +17,45 @@ export interface MapPreset {
   minPlayers: number;
   maxPlayers: number;
   recommendedAi: number;
+  qOffset: number;
 }
 
 export const MAP_PRESETS: Record<MapType, MapPreset> = {
-  normal: { columns: 16, rows: 12, minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
-  long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
-  island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
-  round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
-  belarus: { columns: 20, rows: 13, minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+  normal: { columns: 16, rows: 12, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: 0 },
+  long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
+  island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
+  round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1, qOffset: 0 },
+  belarus: { columns: 24, rows: 12, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -6 },
 };
 
 export const MAP_COLUMNS = MAP_PRESETS.normal.columns;
 export const MAP_ROWS = MAP_PRESETS.normal.rows;
 export const MOUNTAIN_TO_MINE_CHANCE = config.mineChance;
 
-// Контур Беларуси: для каждой строки r диапазон q (минимальный, максимальный).
+// Контур Беларуси построен по реальным координатам границы
+// (долгота 23.2–32.8, широта 51.3–56.2), приведённым к гекс-сетке
+// u = q + r/2. Юго-западный выступ (Брест) уходит в отрицательные q.
 const BELARUS_ROWS: [number, number][] = [
-  [3, 12],
-  [2, 13],
-  [2, 14],
-  [2, 15],
-  [2, 16],
-  [3, 17],
-  [3, 18],
-  [2, 18],
-  [1, 18],
-  [1, 18],
-  [2, 17],
+  [16, 16],
+  [6, 16],
+  [5, 16],
   [3, 16],
-  [5, 14],
+  [2, 17],
+  [0, 17],
+  [-1, 17],
+  [-2, 16],
+  [-3, 15],
+  [-4, 14],
+  [-4, 12],
+  [-4, 10],
 ];
 
 export function generateMap(type: MapType = 'normal'): Hex[] {
   const preset = MAP_PRESETS[type];
   const hexes: Hex[] = [];
+  const qMin = preset.qOffset;
   for (let r = 0; r < preset.rows; r++) {
-    for (let q = 0; q < preset.columns; q++) {
+    for (let q = qMin; q < qMin + preset.columns; q++) {
       if (type === 'round' && !isInCircle(q, r)) continue;
       const terrain = isLand(type, preset, q, r) ? randomTerrain() : 'water';
       hexes.push({ q, r, terrain });

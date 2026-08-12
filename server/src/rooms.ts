@@ -67,6 +67,7 @@ export class Room {
   private connToSlot = new Map<number, number>();
   private state: GameState | null = null;
   private log: string[] = [];
+  private aiLastActionAt = new Map<number, number>();
 
   constructor(
     readonly id: number,
@@ -156,7 +157,7 @@ export class Room {
       battleProgress: 0,
     }));
     const preset = MAP_PRESETS[this.mapType];
-    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null };
+    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.status = 'playing';
     this.paused = false;
     this.addLog('Новая игра началась');
@@ -184,10 +185,16 @@ export class Room {
     for (const claim of claims) {
       this.addLog(`${this.playerName(claim.ownerId)} окружил и захватил ${claim.hexes.length} клеток`);
     }
+    const now = Date.now();
     for (const player of state.players) {
       if (!player.isAi) continue;
+      const last = this.aiLastActionAt.get(player.id) ?? 0;
+      if (now - last < config.aiActionIntervalMs) continue;
       const action = chooseAiAction(state, player.id);
-      if (action) this.applyAiAction(player.id, action);
+      if (action) {
+        this.aiLastActionAt.set(player.id, now);
+        this.applyAiAction(player.id, action);
+      }
     }
     rules.computeWinner(state);
   }

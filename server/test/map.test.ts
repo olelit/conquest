@@ -31,7 +31,7 @@ describe('generateMap', () => {
   });
   it('беларусь: суша 160–200 гексов, остальное — вода', () => {
     const hexes = generateMap('belarus');
-    expect(hexes).toHaveLength(20 * 13);
+    expect(hexes).toHaveLength(24 * 12);
     const land = hexes.filter((h) => h.terrain !== 'water').length;
     expect(land).toBeGreaterThanOrEqual(160);
     expect(land).toBeLessThanOrEqual(200);
@@ -47,8 +47,8 @@ describe('generateMap', () => {
     for (const type of ['normal', 'long', 'island', 'round', 'belarus'] as MapType[]) {
       const preset = MAP_PRESETS[type];
       for (const hex of generateMap(type)) {
-        expect(hex.q).toBeGreaterThanOrEqual(0);
-        expect(hex.q).toBeLessThan(preset.columns);
+        expect(hex.q).toBeGreaterThanOrEqual(preset.qOffset);
+        expect(hex.q).toBeLessThan(preset.qOffset + preset.columns);
         expect(hex.r).toBeGreaterThanOrEqual(0);
         expect(hex.r).toBeLessThan(preset.rows);
       }

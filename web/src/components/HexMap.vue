@@ -9,6 +9,9 @@ const emit = defineEmits<{ click: [hex: Hex] }>();
 const HEX_SIZE = 30;
 const SQRT3 = Math.sqrt(3);
 const PADDING = 20;
+// Невидимая зона вокруг карты: её можно двигать, даже когда зум отсутствует,
+// чтобы увести край карты из-под интерфейса.
+const PAN_MARGIN = 0.5;
 
 const pointCache = new Map<string, ReturnType<typeof hexPoints>>();
 
@@ -62,9 +65,12 @@ const baseViewBox = computed<ViewBox>(() => {
 });
 
 const view = ref<ViewBox | null>(null);
-const viewBox = computed(() => {
-  const v = view.value ?? baseViewBox.value;
-  return `${v.x} ${v.y} ${v.w} ${v.h}`;
+const viewBox = computed(() => `${baseViewBox.value.x} ${baseViewBox.value.y} ${baseViewBox.value.w} ${baseViewBox.value.h}`);
+const viewTransform = computed(() => {
+  const base = baseViewBox.value;
+  const v = view.value ?? base;
+  const scale = base.w / v.w;
+  return `translate(${base.x - v.x * scale} ${base.y - v.y * scale}) scale(${scale})`;
 });
 
 watch(baseViewBox, (b) => {
@@ -91,23 +97,28 @@ function onWheel(e: WheelEvent): void {
   const newW = Math.min(maxW, Math.max(minW, v.w / factor));
   if (Math.abs(newW - v.w) < 0.001) return;
   const newH = newW * (base.h / base.w);
-  view.value = {
+  view.value = clampView({
     x: worldX - cx * newW,
     y: worldY - cy * newH,
     w: newW,
     h: newH,
-  };
+  });
 }
 
 const PAN_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
 const pressedKeys = new Set<string>();
 let panRaf = 0;
+let lastPanTime = 0;
 
 function onKeyDown(e: KeyboardEvent): void {
   if ((e.target as HTMLElement | null)?.closest('input, select, textarea')) return;
   if (!PAN_KEYS.has(e.code)) return;
+  e.preventDefault();
   pressedKeys.add(e.code);
-  if (!panRaf) panRaf = requestAnimationFrame(panStep);
+  if (!panRaf) {
+    lastPanTime = 0;
+    panRaf = requestAnimationFrame(panStep);
+  }
 }
 
 function onKeyUp(e: KeyboardEvent): void {
@@ -130,23 +141,35 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function panStep(): void {
+function clampView(v: ViewBox): ViewBox {
   const base = baseViewBox.value;
-  const v = view.value ?? base;
+  const marginW = base.w * PAN_MARGIN;
+  const marginH = base.h * PAN_MARGIN;
+  return {
+    ...v,
+    x: clamp(v.x, base.x - marginW, base.x + base.w + marginW - v.w),
+    y: clamp(v.y, base.y - marginH, base.y + base.h + marginH - v.h),
+  };
+}
+
+function panStep(now: number): void {
+  const v = view.value ?? baseViewBox.value;
+  if (!lastPanTime) lastPanTime = now;
+  const dt = Math.min((now - lastPanTime) / 1000, 0.1);
+  lastPanTime = now;
   let dx = 0;
   let dy = 0;
-  const stepX = v.w * 0.03;
-  const stepY = v.h * 0.03;
-  if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) dx -= stepX;
-  if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) dx += stepX;
-  if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) dy -= stepY;
-  if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) dy += stepY;
+  const speed = v.w * 0.45;
+  if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) dx -= 1;
+  if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) dx += 1;
+  if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) dy -= 1;
+  if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) dy += 1;
   if (dx !== 0 || dy !== 0) {
-    view.value = {
-      ...v,
-      x: clamp(v.x + dx, base.x, base.x + base.w - v.w),
-      y: clamp(v.y + dy, base.y, base.y + base.h - v.h),
-    };
+    if (dx !== 0 && dy !== 0) {
+      dx *= Math.SQRT1_2;
+      dy *= Math.SQRT1_2;
+    }
+    view.value = clampView({ ...v, x: v.x + dx * speed * dt, y: v.y + dy * speed * dt });
   }
   panRaf = requestAnimationFrame(panStep);
 }
@@ -250,6 +273,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 <template>
   <div ref="mapWrap" class="hex-map" @contextmenu.prevent @wheel.prevent="onWheel">
     <svg :viewBox="viewBox" class="hex-map__svg">
+      <g :transform="viewTransform" class="hex-map__view">
       <defs>
         <clipPath v-for="hex in props.hexes.filter((h) => h.attackerId !== null)" :key="`clip-${hex.q}-${hex.r}`" :id="`clip-${hex.q}-${hex.r}`">
           <rect
@@ -290,6 +314,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           :stroke="colorOf(captureState(hex)!.byId)"
           class="hex-capture-ring"
         />
+      </g>
       </g>
     </svg>
 
@@ -342,6 +367,10 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
   display: block;
   width: 100%;
   height: auto;
+}
+
+.hex-map__view {
+  will-change: transform;
 }
 
 .hex {
