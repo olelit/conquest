@@ -44,6 +44,10 @@ const winner = computed(() => {
   if (id == null) return null;
   return game.value?.players.find((p) => p.id === id)?.name ?? null;
 });
+const defeated = computed(() => {
+  if (playerId.value === null || !game.value) return false;
+  return game.value.players.find((p) => p.id === playerId.value)?.eliminated ?? false;
+});
 const isHost = computed(() => room.value !== null && room.value.hostPlayerId === playerId.value);
 const showPause = computed(() => room.value?.aiMode === true);
 const aiMax = computed(() => MAP_INFO[aiMapType.value].maxPlayers - 1);
@@ -130,6 +134,12 @@ function onArmyChange(points: number): void {
 
 function onPause(): void {
   client.sendPause();
+}
+
+function onRestart(): void {
+  if (!window.confirm('Перезапустить игру?')) return;
+  burgerOpen.value = false;
+  client.sendRestart();
 }
 
 function goToMenu(): void {
@@ -298,6 +308,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
+        <div v-if="winner && defeated" class="banner banner--error">Поражение: {{ winner }}!</div>
         <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
         <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
@@ -318,6 +329,7 @@ onBeforeUnmount(() => {
 
     <div v-if="burgerOpen" class="burger-overlay" @click.self="burgerOpen = false">
       <div class="burger-menu">
+        <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">Перезапустить игру</button>
         <button class="burger-menu__item" @click="onToMenu">Выйти в меню</button>
       </div>
     </div>

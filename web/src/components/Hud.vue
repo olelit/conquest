@@ -30,10 +30,11 @@ function pointsText(p: Player): string {
       v-for="p in players"
       :key="p.id"
       class="player-list__row"
-      :class="{ 'player-list__row--me': p.id === humanId }"
+      :class="{ 'player-list__row--me': p.id === humanId, 'player-list__row--dead': p.eliminated }"
     >
       <span class="player-list__name" :style="{ color: colorOf(p) }">{{ p.name }}</span>
       <span class="player-list__hexes">{{ p.hexCount }} кл.</span>
+      <span v-if="p.eliminated" class="player-list__dead">выбыл</span>
       <span class="player-list__points">{{ pointsText(p) }}</span>
       <span class="player-list__income">+{{ p.income }}/сек</span>
     </div>
@@ -68,6 +69,10 @@ function pointsText(p: Player): string {
   border-width: 2px;
 }
 
+.player-list__row--dead {
+  opacity: 0.45;
+}
+
 .player-list__name {
   font-weight: 700;
   font-size: 20px;
@@ -77,6 +82,13 @@ function pointsText(p: Player): string {
 .player-list__hexes {
   color: #aaa;
   font-size: 14px;
+}
+
+.player-list__dead {
+  color: #c62828;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .player-list__points {
