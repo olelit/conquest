@@ -44,6 +44,8 @@ export interface Player {
   income: number;
   limit: number;
   isAi: boolean;
+  capital: { q: number; r: number } | null;
+  eliminated: boolean;
 }
 
 export interface GameState {
@@ -86,6 +88,7 @@ export type ClientMessage =
   | { type: 'attack'; q: number; r: number; points: number }
   | { type: 'defend'; q: number; r: number; points: number }
   | { type: 'pause' }
+  | { type: 'restart' }
   | { type: 'menu' }
   | { type: 'leave-room' }
   | { type: 'start-solo'; mapType: MapType; aiCount: number }
