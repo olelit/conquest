@@ -29,7 +29,7 @@ const room = ref<RoomView | null>(null);
 const playerId = ref<number | null>(null);
 const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
 const burgerOpen = ref(false);
-const army = ref(200);
+const army = ref(50);
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
 const createMapType = ref<MapType>('normal');
@@ -65,13 +65,6 @@ watch(createMapType, () => {
   if (createMaxPlayers.value < info.minPlayers) createMaxPlayers.value = info.minPlayers;
 });
 
-watch(
-  () => myPlayer.value?.points ?? 0,
-  (points) => {
-    if (army.value > points) army.value = points;
-  },
-);
-
 const client = new GameClient();
 client.onState = (_state, pid, authProfile, rms, rm) => {
   playerId.value = pid;
@@ -87,13 +80,19 @@ client.onStatus = (isConnected) => {
   connected.value = isConnected;
 };
 
+function armyPoints(): number {
+  const points = myPlayer.value?.points ?? 0;
+  return Math.min(points, Math.max(1, Math.floor((points * army.value) / 100)));
+}
+
 function isCapturable(hex: Hex): boolean {
   const g = game.value;
   if (!g || playerId.value === null || hex.ownerId !== null || hex.attackerId !== null) return false;
   const human = g.players.find((p) => p.id === playerId.value);
   if (!human) return false;
+  if (human.eliminated) return false;
   if (human.hexCount === 0) return true;
-  if (human.points - army.value < TERRAIN_COSTS[hex.terrain]) return false;
+  if (human.points - armyPoints() < TERRAIN_COSTS[hex.terrain]) return false;
   return g.hexes.some((h) => h.ownerId === human.id && isAdjacent(h, hex));
 }
 
@@ -105,7 +104,9 @@ function isAdjacentToMine(hex: Hex): boolean {
 
 function onHexClick(hex: Hex): void {
   if (playerId.value === null) return;
-  const send = Math.max(1, Math.min(army.value, myPlayer.value?.points ?? 0));
+  if (myPlayer.value?.eliminated) return;
+  const send = armyPoints();
+  if (send < 1) return;
   if (hex.attackerId !== null) {
     if (hex.attackerId === playerId.value) {
       client.sendAttack(hex.q, hex.r, send);
@@ -115,7 +116,7 @@ function onHexClick(hex: Hex): void {
     return;
   }
   if (isCapturable(hex)) {
-    client.sendCapture(hex.q, hex.r, army.value);
+    client.sendCapture(hex.q, hex.r, send);
     return;
   }
   if (hex.ownerId !== null && hex.ownerId !== playerId.value && isAdjacentToMine(hex)) {

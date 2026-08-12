@@ -17,7 +17,8 @@ function colorOf(p: Player): string {
 
 function pointsText(p: Player): string {
   if (p.id === props.humanId) {
-    return `${Math.max(0, p.points - props.army)}/${p.limit}`;
+    const reserve = Math.floor((p.points * props.army) / 100);
+    return `${Math.max(0, p.points - reserve)}/${p.limit}`;
   }
   return `${p.points}/${p.limit}`;
 }

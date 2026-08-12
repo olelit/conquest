@@ -4,15 +4,16 @@ import type { GameState } from '../types';
 
 const props = defineProps<{ game: GameState; humanId: number | null; army: number }>();
 
-const emit = defineEmits<{ armyChange: [points: number] }>();
+const emit = defineEmits<{ armyChange: [percent: number] }>();
 
 const human = computed(() => props.game.players.find((p) => p.id === props.humanId) ?? null);
-const max = computed(() => human.value?.points ?? 0);
-const available = computed(() => Math.max(0, (human.value?.points ?? 0) - props.army));
+const points = computed(() => human.value?.points ?? 0);
+const reserve = computed(() => Math.floor((points.value * props.army) / 100));
+const available = computed(() => Math.max(0, points.value - reserve.value));
 const limit = computed(() => human.value?.limit ?? 0);
 
 function clamp(value: number): number {
-  return Math.max(0, Math.min(max.value, Math.floor(Number.isFinite(value) ? value : 0)));
+  return Math.max(0, Math.min(100, Math.floor(Number.isFinite(value) ? value : 0)));
 }
 
 function change(value: number): void {
@@ -28,17 +29,20 @@ function step(delta: number): void {
   <div class="army-bar">
     <div class="army-bar__row">
       <span class="army-bar__label">Армия</span>
-      <button class="army-bar__btn" @click="step(-50)">−</button>
-      <input
-        class="army-bar__input"
-        type="number"
-        min="0"
-        :max="max"
-        :value="army"
-        @change="change(Number(($event.target as HTMLInputElement).value))"
-      />
-      <button class="army-bar__btn" @click="step(50)">+</button>
-      <span class="army-bar__hint">атакующих · доступно {{ available }}/{{ limit }}</span>
+      <button class="army-bar__btn" @click="step(-5)">−</button>
+      <div class="army-bar__input-wrap">
+        <input
+          class="army-bar__input"
+          type="number"
+          min="0"
+          max="100"
+          :value="army"
+          @change="change(Number(($event.target as HTMLInputElement).value))"
+        />
+        <span class="army-bar__percent">%</span>
+      </div>
+      <button class="army-bar__btn" @click="step(5)">+</button>
+      <span class="army-bar__hint">% от очков · доступно {{ available }}/{{ limit }}</span>
     </div>
   </div>
 </template>
@@ -108,5 +112,19 @@ function step(delta: number): void {
   color: #999;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.army-bar__input-wrap {
+  position: relative;
+}
+
+.army-bar__percent {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  font-weight: 600;
+  pointer-events: none;
 }
 </style>
