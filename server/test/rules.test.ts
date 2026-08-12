@@ -372,6 +372,34 @@ describe('экономика', () => {
   });
 });
 
+describe('столица', () => {
+  it('первый захваченный гекс становится столицей', () => {
+    const s = makeState([{ q: 5, r: 5 }]);
+    applyCapture(s, P, 5, 5);
+    expect(s.players[0].capital).toEqual({ q: 5, r: 5 });
+  });
+  it('второй захват не меняет столицу', () => {
+    const s = makeState([{ q: 5, r: 5 }, { q: 6, r: 5 }]);
+    applyCapture(s, P, 5, 5);
+    applyCapture(s, P, 6, 5);
+    expect(s.players[0].capital).toEqual({ q: 5, r: 5 });
+  });
+  it('первая клетка через бой становится столицей после победы', () => {
+    const s = makeState(
+      [{ q: 5, r: 5 }, { q: 6, r: 5, ownerId: AI }],
+      [{ id: 1, points: 1000 }, { id: 2, points: 1000 }],
+    );
+    applyCapture(s, P, 5, 5); // бой у границы врага
+    expect(s.players[0].capital).toBeUndefined();
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    hex.attackInvestment = 300;
+    hex.defenseInvestment = 0;
+    hex.battleProgress = CAPTURE_TICKS - 1;
+    tickBattles(s);
+    expect(s.players[0].capital).toEqual({ q: 5, r: 5 });
+  });
+});
+
 describe('окружение', () => {
   it('нейтральный гекс со всех сторон окружён игроком — становится его', () => {
     const s = makeState([

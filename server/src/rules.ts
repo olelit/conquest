@@ -15,6 +15,7 @@ export interface PlayerState {
   name?: string;
   points: number;
   isAi?: boolean;
+  capital?: { q: number; r: number } | null;
 }
 
 export interface HexState {
@@ -171,6 +172,7 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
     hex.battleProgress = 0;
   } else {
     hex.ownerId = playerId;
+    if (isFirst && !player.capital) player.capital = { q, r };
   }
 }
 
@@ -231,8 +233,11 @@ export function tickBattles(state: GameState): BattleResult[] {
     if (hex.battleProgress >= CAPTURE_TICKS) {
       const winner = state.players.find((p) => p.id === hex.attackerId);
       if (winner) winner.points += hex.attackInvestment;
-      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId });
       hex.ownerId = hex.attackerId;
+      if (winner && !winner.capital && hexCount(state, winner.id) === 1) {
+        winner.capital = { q: hex.q, r: hex.r };
+      }
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId });
       resetBattle(hex);
       continue;
     }
@@ -244,8 +249,11 @@ export function tickBattles(state: GameState): BattleResult[] {
       }
       const winner = state.players.find((p) => p.id === hex.defenderId);
       if (winner) winner.points += hex.defenseInvestment;
-      results.push({ q: hex.q, r: hex.r, winnerId: hex.defenderId });
       hex.ownerId = hex.defenderId;
+      if (winner && !winner.capital && hexCount(state, winner.id) === 1) {
+        winner.capital = { q: hex.q, r: hex.r };
+      }
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.defenderId });
       resetBattle(hex);
     }
   }
