@@ -3,6 +3,7 @@ import { MAP_COLUMNS, MAP_PRESETS, MAP_ROWS, generateMap, type Terrain } from '.
 import {
   applyAttack,
   applyCapture,
+  applyCut,
   applyDefend,
   applyEnclosure,
   applyIncome,
@@ -659,5 +660,36 @@ describe('вспомогательные', () => {
     expect(winHexCount(192)).toBe(97);
     expect(CAPTURE_TICKS).toBe(5);
     expect(DRAIN_PER_TICK).toBe(10);
+  });
+});
+
+describe('отрезание территории', () => {
+  it('захват шейки отрезает часть без столицы', () => {
+    const s = makeState([
+      { q: 2, r: 2, ownerId: P }, { q: 3, r: 2, ownerId: P }, { q: 4, r: 2, ownerId: P },
+      { q: 5, r: 2, ownerId: P }, { q: 6, r: 2, ownerId: P }, { q: 7, r: 2, ownerId: P },
+    ]);
+    s.players[0].capital = { q: 2, r: 2 };
+    s.hexes.find((h) => h.q === 4 && h.r === 2)!.ownerId = null; // шейку уже захватил враг
+    const cut = applyCut(s, P);
+    expect(cut.map((h) => `${h.q},${h.r}`).sort()).toEqual(['5,2', '6,2', '7,2'].sort());
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 2)!.ownerId).toBeNull();
+    expect(s.hexes.find((h) => h.q === 2 && h.r === 2)!.ownerId).toBe(P);
+    expect(s.hexes.find((h) => h.q === 3 && h.r === 2)!.ownerId).toBe(P);
+  });
+  it('связная территория не режется', () => {
+    const s = makeState([{ q: 2, r: 2, ownerId: P }, { q: 3, r: 2, ownerId: P }]);
+    s.players[0].capital = { q: 2, r: 2 };
+    expect(applyCut(s, P)).toHaveLength(0);
+  });
+  it('выбывший игрок не режется', () => {
+    const s = makeState([{ q: 2, r: 2, ownerId: P }, { q: 5, r: 5, ownerId: P }]);
+    s.players[0].eliminated = true;
+    expect(applyCut(s, P)).toHaveLength(0);
+  });
+  it('без столицы главный — первый компонент', () => {
+    const s = makeState([{ q: 2, r: 2, ownerId: P }, { q: 5, r: 5, ownerId: P }]);
+    const cut = applyCut(s, P);
+    expect(cut.map((h) => `${h.q},${h.r}`)).toEqual(['5,5']);
   });
 });

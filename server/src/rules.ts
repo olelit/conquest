@@ -317,6 +317,46 @@ export function applyEnclosure(state: GameState): { ownerId: number; hexes: HexS
   return claims;
 }
 
+export function applyCut(state: GameState, playerId: number): HexState[] {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.eliminated) return [];
+  const owned = state.hexes.filter((h) => h.ownerId === playerId);
+  if (owned.length === 0) return [];
+  const components: HexState[][] = [];
+  const visited = new Set<HexState>();
+  for (const start of owned) {
+    if (visited.has(start)) continue;
+    const component: HexState[] = [];
+    const queue = [start];
+    visited.add(start);
+    while (queue.length > 0) {
+      const hex = queue.pop()!;
+      component.push(hex);
+      for (const [dq, dr] of NEIGHBOR_OFFSETS) {
+        const neighbor = findHex(state, hex.q + dq, hex.r + dr);
+        if (!neighbor || neighbor.ownerId !== playerId || visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+    components.push(component);
+  }
+  if (components.length <= 1) return [];
+  let main = components[0];
+  if (player.capital) {
+    main = components.find((c) => c.some((h) => h.q === player.capital!.q && h.r === player.capital!.r)) ?? components[0];
+  }
+  const cut: HexState[] = [];
+  for (const component of components) {
+    if (component === main) continue;
+    for (const hex of component) {
+      hex.ownerId = null;
+      cut.push(hex);
+    }
+  }
+  return cut;
+}
+
 function enclosureOwner(state: GameState, region: HexState[]): number | null {
   const inRegion = new Set(region);
   let owner: number | null = null;
