@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as rules from '../src/rules.js';
 import { Room } from '../src/rooms.js';
 
 function makeRoom(aiMode = false, aiCount = 1, maxPlayers = 4): Room {
@@ -153,6 +154,54 @@ describe('Room: действия и тик', () => {
     expect(room.gameState!.players.find((p) => p.id === 1)!.isAi).toBe(true);
     expect(room.slotForConn(1)).toBeNull();
     expect(room.view().slots.find((s) => s.id === 1)!.isAi).toBe(true);
+  });
+});
+
+describe('Room: выбытие', () => {
+  it('10%: столица захвачена — игрок выбывает, территория делится на ИИ, соло заканчивается', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.05);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const capital = g.hexes[0];
+    capital.ownerId = 1;
+    g.players[0].capital = { q: capital.q, r: capital.r };
+    for (let i = 1; i <= 20; i++) g.hexes[i].ownerId = 1;
+    capital.attackerId = 2;
+    capital.attackInvestment = 500;
+    capital.defenseInvestment = 0;
+    capital.battleProgress = rules.CAPTURE_TICKS - 1;
+    room.tick();
+    expect(g.players[0].eliminated).toBe(true);
+    expect(g.winnerId).toBe(2);
+    expect(g.players).toHaveLength(4);
+    expect(room.slotsCount).toBe(4);
+    expect(room.view().slots.filter((s) => s.isAi)).toHaveLength(3);
+  });
+  it('отрезание: захват шейки нейтрализует дальний кусок', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const chain = [g.hexes[0], g.hexes[1], g.hexes[2], g.hexes[3], g.hexes[4], g.hexes[5]];
+    for (const hex of chain) hex.ownerId = 1;
+    g.players[0].capital = { q: chain[0].q, r: chain[0].r };
+    // игрок 2 (ИИ) захватывает шейку chain[2] через битву
+    const neck = chain[2];
+    neck.attackerId = 2;
+    neck.attackInvestment = 500;
+    neck.defenseInvestment = 0;
+    neck.battleProgress = rules.CAPTURE_TICKS - 1;
+    // детерминизм: в этом же тике ИИ 2 захватывает дешёвых соседей шейки,
+    // поэтому делаем шейковый хвост дорогим, а других соседей — дешёвыми
+    chain[3].terrain = 'mountain';
+    g.hexes[17].terrain = 'grass';
+    g.hexes[18].terrain = 'grass';
+    room.tick();
+    expect(neck.ownerId).toBe(2);
+    expect(chain[0].ownerId).toBe(1);
+    expect(chain[3].ownerId).toBeNull();
+    expect(chain[5].ownerId).toBeNull();
   });
 });
 

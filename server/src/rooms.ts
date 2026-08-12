@@ -67,6 +67,7 @@ export class Room {
   private connToSlot = new Map<number, number>();
   private state: GameState | null = null;
   private log: string[] = [];
+  private eliminationSpawned = new Set<number>();
   private aiLastActionAt = new Map<number, number>();
 
   constructor(
@@ -76,6 +77,7 @@ export class Room {
     readonly maxPlayers: number,
     readonly aiMode: boolean,
     private readonly aiCount: number,
+    private readonly rng: () => number = Math.random,
   ) {}
 
   get gameState(): GameState | null {
@@ -181,13 +183,52 @@ export class Room {
         this.addLog(`Битва за (${result.q}, ${result.r}) окончена — победил ${this.playerName(result.winnerId)}`);
       }
     }
+    for (const result of results) {
+      if (result.loserId === undefined) continue;
+      const elim = rules.eliminateIfCapitalLost(state, result.loserId, this.rng);
+      if (elim) {
+        this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
+        if (elim.neutralHexes.length > 0) {
+          this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
+        }
+        if (elim.newAis.length > 0) {
+          const usedNames = new Set(this.slots.map((s) => s.name));
+          const names: string[] = [];
+          for (const ai of elim.newAis) {
+            const name = uniqueCountryName(usedNames);
+            names.push(name);
+            state.players.push({
+              id: ai.id,
+              name,
+              points: rules.BASE_POINTS,
+              isAi: true,
+              capital: { q: ai.hexes[0].q, r: ai.hexes[0].r },
+            });
+            this.slots.push({ id: ai.id, name, isAi: true, connId: null, disconnected: false });
+            this.eliminationSpawned.add(ai.id);
+          }
+          this.addLog(`Территория ${this.playerName(elim.eliminatedId)} разделена между: ${names.join(', ')}`);
+        }
+        if (this.aiMode) {
+          const human = this.slots.find((s) => s.connId !== null);
+          if (human?.id === elim.eliminatedId && elim.capturerId !== null) {
+            state.winnerId = elim.capturerId;
+          }
+        }
+      } else {
+        const cut = rules.applyCut(state, result.loserId);
+        if (cut.length > 0) {
+          this.addLog(`${this.playerName(result.loserId)} отрезан: ${cut.length} клеток стали нейтральными`);
+        }
+      }
+    }
     const claims = rules.applyEnclosure(state);
     for (const claim of claims) {
       this.addLog(`${this.playerName(claim.ownerId)} окружил и захватил ${claim.hexes.length} клеток`);
     }
     const now = Date.now();
     for (const player of state.players) {
-      if (!player.isAi) continue;
+      if (!player.isAi || player.eliminated) continue;
       const last = this.aiLastActionAt.get(player.id) ?? 0;
       if (now - last < config.aiActionIntervalMs) continue;
       const action = chooseAiAction(state, player.id);
@@ -287,6 +328,8 @@ export class Room {
               income: rules.playerIncome(this.state!, p.id),
               limit: rules.pointLimit(rules.hexCount(this.state!, p.id)),
               isAi: p.isAi ?? false,
+              capital: p.capital ?? null,
+              eliminated: p.eliminated ?? false,
             })),
             hexes: this.state.hexes,
             winnerId: this.state.winnerId,

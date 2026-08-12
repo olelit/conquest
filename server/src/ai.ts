@@ -8,6 +8,7 @@ export type AiAction =
 export function chooseAiAction(state: GameState, aiId: number): AiAction | null {
   const ai = state.players.find((p) => p.id === aiId);
   if (!ai) return null;
+  if (ai.eliminated) return null;
 
   const aiHexCount = hexCount(state, aiId);
   if (aiHexCount === 0) {
