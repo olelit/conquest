@@ -771,4 +771,25 @@ describe('выбытие', () => {
     expect(results[0].winnerId).toBe(AI);
     expect(results[0].loserId).toBe(P);
   });
+  it('все выбыли в один тик: победитель — последний владелец клеток', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI }], [{ id: 1, points: 100 }, { id: 2, points: 100 }]);
+    s.players[0].capital = { q: 6, r: 5 };
+    s.players[1].capital = { q: 5, r: 5 };
+    s.players[0].eliminated = true;
+    s.players[1].eliminated = true;
+    computeWinner(s);
+    expect(s.winnerId).toBe(AI);
+  });
+  it('выбытие отменяет незавершённые битвы выбывшего', () => {
+    const s = makeState([
+      { q: 2, r: 2, ownerId: P, attackerId: P, attackInvestment: 200 },
+      { q: 5, r: 5, ownerId: P },
+    ]);
+    s.players[0].capital = { q: 5, r: 5 };
+    s.hexes.find((h) => h.q === 5 && h.r === 5)!.ownerId = AI; // столица захвачена
+    eliminateIfCapitalLost(s, P, () => 0.5);
+    const battle = s.hexes.find((h) => h.q === 2 && h.r === 2)!;
+    expect(battle.attackerId).toBeNull();
+    expect(battle.attackInvestment).toBe(0);
+  });
 });

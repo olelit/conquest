@@ -187,6 +187,8 @@ export class Room {
     this.paused = false;
     this.finishedAt = null;
     this.aiLastActionAt.clear();
+    this.log = [];
+    this.eliminationSpawned.clear();
     this.addLog('Игра перезапущена');
     return { ok: true };
   }
@@ -209,47 +211,14 @@ export class Room {
       }
     }
     for (const result of results) {
-      if (result.loserId === undefined) continue;
-      const elim = rules.eliminateIfCapitalLost(state, result.loserId, this.rng);
-      if (elim) {
-        this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
-        if (elim.neutralHexes.length > 0) {
-          this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
-        }
-        if (elim.newAis.length > 0) {
-          const usedNames = new Set(this.slots.map((s) => s.name));
-          const names: string[] = [];
-          for (const ai of elim.newAis) {
-            const name = uniqueCountryName(usedNames);
-            names.push(name);
-            state.players.push({
-              id: ai.id,
-              name,
-              points: rules.BASE_POINTS,
-              isAi: true,
-              capital: { q: ai.hexes[0].q, r: ai.hexes[0].r },
-            });
-            this.slots.push({ id: ai.id, name, isAi: true, connId: null, disconnected: false });
-            this.eliminationSpawned.add(ai.id);
-          }
-          this.addLog(`Территория ${this.playerName(elim.eliminatedId)} разделена между: ${names.join(', ')}`);
-        }
-        if (this.aiMode) {
-          const human = this.slots.find((s) => s.connId !== null);
-          if (human?.id === elim.eliminatedId && elim.capturerId !== null) {
-            state.winnerId = elim.capturerId;
-          }
-        }
-      } else {
-        const cut = rules.applyCut(state, result.loserId);
-        if (cut.length > 0) {
-          this.addLog(`${this.playerName(result.loserId)} отрезан: ${cut.length} клеток стали нейтральными`);
-        }
-      }
+      if (result.loserId !== undefined) this.handlePlayerLoss(result.loserId);
     }
     const claims = rules.applyEnclosure(state);
     for (const claim of claims) {
       this.addLog(`${this.playerName(claim.ownerId)} окружил и захватил ${claim.hexes.length} клеток`);
+    }
+    for (const claim of claims) {
+      if (claim.prevOwnerId !== null) this.handlePlayerLoss(claim.prevOwnerId);
     }
     const now = Date.now();
     for (const player of state.players) {
@@ -263,6 +232,46 @@ export class Room {
       }
     }
     rules.computeWinner(state);
+  }
+
+  private handlePlayerLoss(playerId: number): void {
+    const state = this.state!;
+    const elim = rules.eliminateIfCapitalLost(state, playerId, this.rng);
+    if (elim) {
+      this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
+      if (elim.neutralHexes.length > 0) {
+        this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
+      }
+      if (elim.newAis.length > 0) {
+        const usedNames = new Set(this.slots.map((s) => s.name));
+        const names: string[] = [];
+        for (const ai of elim.newAis) {
+          const name = uniqueCountryName(usedNames);
+          names.push(name);
+          state.players.push({
+            id: ai.id,
+            name,
+            points: rules.BASE_POINTS,
+            isAi: true,
+            capital: { q: ai.hexes[0].q, r: ai.hexes[0].r },
+          });
+          this.slots.push({ id: ai.id, name, isAi: true, connId: null, disconnected: false });
+          this.eliminationSpawned.add(ai.id);
+        }
+        this.addLog(`Территория ${this.playerName(elim.eliminatedId)} разделена между: ${names.join(', ')}`);
+      }
+      if (this.aiMode) {
+        const human = this.slots.find((s) => s.connId !== null);
+        if (human?.id === elim.eliminatedId && elim.capturerId !== null) {
+          state.winnerId = elim.capturerId;
+        }
+      }
+    } else {
+      const cut = rules.applyCut(state, playerId);
+      if (cut.length > 0) {
+        this.addLog(`${this.playerName(playerId)} отрезан: ${cut.length} клеток стали нейтральными`);
+      }
+    }
   }
 
   handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number }): ActionResult {

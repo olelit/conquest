@@ -205,6 +205,24 @@ describe('Room: выбытие', () => {
   });
 });
 
+describe('Room: окружение и выбытие', () => {
+  it('окружение территории со столицей выбывает её владельца', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    g.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId = 1;
+    g.hexes.find((h) => h.q === 8 && h.r === 6)!.ownerId = 1;
+    g.players[0].capital = { q: 7, r: 6 };
+    for (const [q, r] of [[6,6],[7,7],[7,5],[8,5],[6,7],[9,6],[8,7],[9,5]]) {
+      g.hexes.find((h) => h.q === q && h.r === r)!.ownerId = 2;
+    }
+    room.tick();
+    expect(g.players[0].eliminated).toBe(true);
+    expect(g.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId).toBe(2);
+  });
+});
+
 import { RoomManager } from '../src/rooms.js';
 
 describe('RoomManager', () => {
@@ -328,6 +346,11 @@ describe('Room: перезапуск', () => {
     const room = makeRoom(false, 1, 2);
     room.addHuman('A', 1);
     room.start(1);
+    expect(room.restart().ok).toBe(false);
+  });
+  it('рестарт до начала игры отклоняется', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
     expect(room.restart().ok).toBe(false);
   });
   it('рестарт сбрасывает состояние', () => {

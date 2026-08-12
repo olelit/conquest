@@ -288,8 +288,14 @@ export function applyIncome(state: GameState): void {
   }
 }
 
-export function applyEnclosure(state: GameState): { ownerId: number; hexes: HexState[] }[] {
-  const claims: { ownerId: number; hexes: HexState[] }[] = [];
+export interface EnclosureClaim {
+  ownerId: number;
+  prevOwnerId: number | null;
+  hexes: HexState[];
+}
+
+export function applyEnclosure(state: GameState): EnclosureClaim[] {
+  const claims: EnclosureClaim[] = [];
   const visited = new Set<HexState>();
   for (const start of state.hexes) {
     if (start.attackerId !== null) continue;
@@ -317,7 +323,7 @@ export function applyEnclosure(state: GameState): { ownerId: number; hexes: HexS
     const owner = enclosureOwner(state, region);
     if (owner !== null && owner !== regionOwnerId) {
       for (const hex of region) hex.ownerId = owner;
-      claims.push({ ownerId: owner, hexes: region });
+      claims.push({ ownerId: owner, prevOwnerId: regionOwnerId, hexes: region });
     }
   }
   return claims;
@@ -386,6 +392,9 @@ export function eliminateIfCapitalLost(
   const capitalHex = findHex(state, player.capital.q, player.capital.r);
   if (capitalHex && capitalHex.ownerId === playerId) return null;
   player.eliminated = true;
+  for (const hex of state.hexes) {
+    if (hex.attackerId === playerId || hex.defenderId === playerId) resetBattle(hex);
+  }
   const capturerId = capitalHex ? capitalHex.ownerId : null;
   const owned = state.hexes.filter((h) => h.ownerId === playerId);
   const neutralHexes: HexState[] = [];
@@ -448,5 +457,12 @@ export function computeWinner(state: GameState): void {
   const remaining = state.players.filter((p) => !p.eliminated);
   if (remaining.length === 1 && hexCount(state, remaining[0].id) > 0) {
     state.winnerId = remaining[0].id;
+    return;
+  }
+  if (remaining.length === 0) {
+    const top = state.players
+      .filter((p) => hexCount(state, p.id) > 0)
+      .sort((a, b) => hexCount(state, b.id) - hexCount(state, a.id))[0];
+    if (top) state.winnerId = top.id;
   }
 }

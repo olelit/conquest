@@ -238,7 +238,7 @@ function captureState(hex: Hex): { byId: number; progress: number } | null {
 }
 
 function capitalPlayer(hex: Hex): Player | null {
-  return props.players.find((p) => p.capital !== null && p.capital.q === hex.q && p.capital.r === hex.r) ?? null;
+  return props.players.find((p) => !p.eliminated && p.capital !== null && p.capital.q === hex.q && p.capital.r === hex.r) ?? null;
 }
 
 const tooltipPos = computed(() => {
