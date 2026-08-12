@@ -239,7 +239,7 @@ export class Room {
     if (
       state.winnerId === null &&
       this.lastCapturerId !== null &&
-      state.players.every((p) => p.eliminated || rules.hexCount(state, p.id) === 0)
+      state.players.every((p) => p.eliminated)
     ) {
       state.winnerId = this.lastCapturerId;
     }

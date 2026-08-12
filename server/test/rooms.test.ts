@@ -391,7 +391,7 @@ describe('Room: перезапуск', () => {
 
 describe('Room: взаимное выбытие', () => {
   it('все выбыли в один тик: победитель — последний захвативший столицу', () => {
-    const room = new Room(1, 'Тест', 'normal', 4, false, 1);
+    const room = new Room(1, 'Тест', 'normal', 2, false, 1);
     room.addHuman('A', 1);
     room.addHuman('B', 2);
     room.start(1);
