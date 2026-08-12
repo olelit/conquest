@@ -11,6 +11,7 @@ import {
   CAPTURE_TICKS,
   computeWinner,
   DRAIN_PER_TICK,
+  eliminateIfCapitalLost,
   findHex,
   hasAdjacentOwner,
   hexCount,
@@ -691,5 +692,83 @@ describe('отрезание территории', () => {
     const s = makeState([{ q: 2, r: 2, ownerId: P }, { q: 5, r: 5, ownerId: P }]);
     const cut = applyCut(s, P);
     expect(cut.map((h) => `${h.q},${h.r}`)).toEqual(['5,5']);
+  });
+});
+
+describe('выбытие', () => {
+  it('потеря столицы = выбытие, территория нейтральна (90%)', () => {
+    const s = makeState([{ q: 2, r: 2, ownerId: P }, { q: 3, r: 2, ownerId: P }]);
+    s.players[0].capital = { q: 2, r: 2 };
+    s.hexes.find((h) => h.q === 2 && h.r === 2)!.ownerId = AI; // столица уже захвачена
+    const res = eliminateIfCapitalLost(s, P, () => 0.5);
+    expect(res).not.toBeNull();
+    expect(s.players[0].eliminated).toBe(true);
+    expect(res!.capturerId).toBe(AI);
+    expect(res!.neutralHexes.map((h) => `${h.q},${h.r}`)).toEqual(['3,2']);
+    expect(res!.newAis).toHaveLength(0);
+    expect(s.hexes.find((h) => h.q === 3 && h.r === 2)!.ownerId).toBeNull();
+  });
+  it('столица на месте — выбытия нет', () => {
+    const s = makeState([{ q: 2, r: 2, ownerId: P }]);
+    s.players[0].capital = { q: 2, r: 2 };
+    expect(eliminateIfCapitalLost(s, P, () => 0.5)).toBeNull();
+    expect(s.players[0].eliminated).toBeUndefined();
+  });
+  it('10% — территория делится на ИИ поровну, остаток нейтральный', () => {
+    const hexes: Partial<HexState>[] = [];
+    for (let i = 0; i < 22; i++) hexes.push({ q: i % 16, r: 5 + Math.floor(i / 16), ownerId: P });
+    const s = makeState(hexes);
+    s.players[0].capital = { q: 5, r: 5 };
+    s.hexes.find((h) => h.q === 5 && h.r === 5)!.ownerId = AI; // столица захвачена, владений 21
+    const res = eliminateIfCapitalLost(s, P, () => 0.05)!;
+    expect(res.newAis).toHaveLength(2);
+    expect(res.newAis[0].hexes).toHaveLength(10);
+    expect(res.newAis[1].hexes).toHaveLength(10);
+    expect(res.neutralHexes).toHaveLength(1);
+    expect(res.newAis.map((a) => a.id)).toEqual([3, 4]);
+    for (const ai of res.newAis) {
+      for (const hex of ai.hexes) expect(hex.ownerId).toBe(ai.id);
+    }
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 6)!.ownerId).toBeNull(); // остаток нейтральный
+  });
+  it('выбывший повторно не выбывает', () => {
+    const s = makeState([]);
+    s.players[0].eliminated = true;
+    expect(eliminateIfCapitalLost(s, P, () => 0.5)).toBeNull();
+  });
+  it('выбывший игрок не может действовать', () => {
+    const s1 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 7, r: 5 }]);
+    s1.players[0].eliminated = true;
+    expect(validateCapture(s1, P, 7, 5).ok).toBe(false);
+    const s2 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, attackerId: AI }]);
+    s2.players[0].eliminated = true;
+    expect(validateDefend(s2, P, 6, 5, 150).ok).toBe(false);
+    const s3 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI }]);
+    s3.players[0].eliminated = true;
+    expect(validateAttack(s3, P, 6, 5, 150).ok).toBe(false);
+  });
+  it('последний оставшийся — победитель', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }], [{ id: 1, points: 100 }, { id: 2, points: 100 }]);
+    s.players[0].capital = { q: 5, r: 5 };
+    s.players[1].eliminated = true;
+    computeWinner(s);
+    expect(s.winnerId).toBe(P);
+  });
+  it('битва за столицу: результат содержит loserId', () => {
+    const s = makeState(
+      [{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI }],
+      [{ id: 1, points: 1000 }, { id: 2, points: 1000 }],
+    );
+    s.players[0].capital = { q: 5, r: 5 };
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    hex.attackerId = AI;
+    hex.defenderId = P;
+    hex.attackInvestment = 500;
+    hex.defenseInvestment = 0;
+    hex.battleProgress = CAPTURE_TICKS - 1;
+    const results = tickBattles(s);
+    expect(results).toHaveLength(1);
+    expect(results[0].winnerId).toBe(AI);
+    expect(results[0].loserId).toBe(P);
   });
 });

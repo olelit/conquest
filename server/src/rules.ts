@@ -16,6 +16,7 @@ export interface PlayerState {
   points: number;
   isAi?: boolean;
   capital?: { q: number; r: number } | null;
+  eliminated?: boolean;
 }
 
 export interface HexState {
@@ -105,6 +106,7 @@ export function validateCapture(state: GameState, playerId: number, q: number, r
   if (hex.attackerId !== null) return { ok: false, error: 'За гекс уже идёт борьба' };
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: 'Игрок не найден' };
+  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
   const count = hexCount(state, playerId);
   if (count === 0) {
     if (hex.terrain === 'water') return { ok: false, error: 'Первый гекс не может быть на воде' };
@@ -132,6 +134,7 @@ export function validateAttack(state: GameState, playerId: number, q: number, r:
   }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: 'Игрок не найден' };
+  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
   if (player.points < points) return { ok: false, error: 'Не хватает очков' };
   return { ok: true };
 }
@@ -152,6 +155,7 @@ export function validateDefend(state: GameState, playerId: number, q: number, r:
   }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: 'Игрок не найден' };
+  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
   if (player.points < points) return { ok: false, error: 'Не хватает очков' };
   return { ok: true };
 }
@@ -212,6 +216,7 @@ export interface BattleResult {
   q: number;
   r: number;
   winnerId: number | null;
+  loserId?: number;
 }
 
 export function tickBattles(state: GameState): BattleResult[] {
@@ -231,13 +236,14 @@ export function tickBattles(state: GameState): BattleResult[] {
       hex.battleProgress -= 1;
     }
     if (hex.battleProgress >= CAPTURE_TICKS) {
+      const oldOwnerId = hex.ownerId;
       const winner = state.players.find((p) => p.id === hex.attackerId);
       if (winner) winner.points += hex.attackInvestment;
       hex.ownerId = hex.attackerId;
       if (winner && !winner.capital && hexCount(state, winner.id) === 1) {
         winner.capital = { q: hex.q, r: hex.r };
       }
-      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId });
+      results.push({ q: hex.q, r: hex.r, winnerId: hex.attackerId, loserId: oldOwnerId ?? undefined });
       resetBattle(hex);
       continue;
     }
@@ -357,6 +363,60 @@ export function applyCut(state: GameState, playerId: number): HexState[] {
   return cut;
 }
 
+export interface NewAiInfo {
+  id: number;
+  hexes: HexState[];
+}
+
+export interface EliminationResult {
+  eliminatedId: number;
+  neutralHexes: HexState[];
+  newAis: NewAiInfo[];
+  capturerId: number | null;
+}
+
+export function eliminateIfCapitalLost(
+  state: GameState,
+  playerId: number,
+  rng: () => number = Math.random,
+): EliminationResult | null {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.eliminated) return null;
+  if (!player.capital) return null;
+  const capitalHex = findHex(state, player.capital.q, player.capital.r);
+  if (capitalHex && capitalHex.ownerId === playerId) return null;
+  player.eliminated = true;
+  const capturerId = capitalHex ? capitalHex.ownerId : null;
+  const owned = state.hexes.filter((h) => h.ownerId === playerId);
+  const neutralHexes: HexState[] = [];
+  const newAis: NewAiInfo[] = [];
+  if (owned.length > 0) {
+    if (rng() < 0.1 && owned.length >= 2) {
+      const k = Math.min(Math.max(Math.round(owned.length / 10), 2), 5);
+      const perAi = Math.floor(owned.length / k);
+      const baseId = Math.max(0, ...state.players.map((p) => p.id)) + 1;
+      for (let i = 0; i < k; i++) {
+        const chunk = owned.slice(i * perAi, (i + 1) * perAi);
+        if (chunk.length === 0) continue;
+        newAis.push({ id: baseId + i, hexes: chunk });
+      }
+      for (let i = k * perAi; i < owned.length; i++) {
+        owned[i].ownerId = null;
+        neutralHexes.push(owned[i]);
+      }
+    } else {
+      for (const hex of owned) {
+        hex.ownerId = null;
+        neutralHexes.push(hex);
+      }
+    }
+  }
+  for (const ai of newAis) {
+    for (const hex of ai.hexes) hex.ownerId = ai.id;
+  }
+  return { eliminatedId: playerId, neutralHexes, newAis, capturerId };
+}
+
 function enclosureOwner(state: GameState, region: HexState[]): number | null {
   const inRegion = new Set(region);
   let owner: number | null = null;
@@ -384,5 +444,9 @@ export function computeWinner(state: GameState): void {
       state.winnerId = player.id;
       return;
     }
+  }
+  const remaining = state.players.filter((p) => !p.eliminated);
+  if (remaining.length === 1 && hexCount(state, remaining[0].id) > 0) {
+    state.winnerId = remaining[0].id;
   }
 }
