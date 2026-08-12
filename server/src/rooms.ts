@@ -24,6 +24,8 @@ export interface ViewPlayer {
   income: number;
   limit: number;
   isAi: boolean;
+  capital: { q: number; r: number } | null;
+  eliminated: boolean;
 }
 
 export interface ViewGame {
