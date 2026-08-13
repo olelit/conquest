@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ArmyBar from './components/ArmyBar.vue';
+import ContextMenu from './components/ContextMenu.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
@@ -30,6 +31,7 @@ const playerId = ref<number | null>(null);
 const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
 const burgerOpen = ref(false);
 const army = ref(20);
+const contextMenu = ref<{ hex: Hex; x: number; y: number } | null>(null);
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
 const aiDifficulty = ref<Difficulty>('medium');
@@ -129,6 +131,18 @@ function onHexClick(hex: Hex): void {
   }
 }
 
+function onContextMenu(payload: { hex: Hex; x: number; y: number }): void {
+  contextMenu.value = payload;
+}
+
+function closeContextMenu(): void {
+  contextMenu.value = null;
+}
+
+function onMenuKeydown(e: KeyboardEvent): void {
+  if (e.code === 'Escape') closeContextMenu();
+}
+
 function onArmyChange(points: number): void {
   army.value = points;
 }
@@ -199,6 +213,9 @@ function initGoogleButton(): void {
 
 onMounted(() => {
   client.connect();
+  window.addEventListener('click', closeContextMenu);
+  window.addEventListener('keydown', onMenuKeydown);
+  window.addEventListener('blur', closeContextMenu);
   if (GOOGLE_CLIENT_ID) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -210,6 +227,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   client.close();
+  window.removeEventListener('click', closeContextMenu);
+  window.removeEventListener('keydown', onMenuKeydown);
+  window.removeEventListener('blur', closeContextMenu);
 });
 </script>
 
@@ -327,7 +347,18 @@ onBeforeUnmount(() => {
           :hexes="game.hexes"
           :players="game.players"
           :capture-ticks="game.captureTicks"
+          :menu-open="contextMenu !== null"
           @click="onHexClick"
+          @contextmenu="onContextMenu"
+        />
+        <ContextMenu
+          v-if="contextMenu"
+          :hex="contextMenu.hex"
+          :x="contextMenu.x"
+          :y="contextMenu.y"
+          :players="game.players"
+          :human-id="playerId"
+          @close="closeContextMenu"
         />
         <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
         <div v-if="room.log?.length" class="log-panel">
