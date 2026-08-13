@@ -227,6 +227,7 @@ describe('Room: окружение и выбытие', () => {
     for (const [q, r] of [[6,6],[7,7],[7,5],[8,5],[6,7],[9,6],[8,7],[9,5]]) {
       g.hexes.find((h) => h.q === q && h.r === r)!.ownerId = 2;
     }
+    rules.declareWar(g, 1, 2);
     room.tick();
     expect(g.players[0].eliminated).toBe(true);
     expect(g.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId).toBe(2);
@@ -476,6 +477,7 @@ describe('Room: статистика', () => {
     g.players[1].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
     g.hexes[1].ownerId = 1;
     g.players[0].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    rules.declareWar(g, 1, 2);
     const result = room.handleAction(1, 'attack', { q: g.hexes[0].q, r: g.hexes[0].r, points: 200 });
     expect(result.type).toBe('state');
     room.tick();

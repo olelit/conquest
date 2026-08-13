@@ -38,6 +38,7 @@ export interface GameState {
   columns: number;
   rows: number;
   winnerId: number | null;
+  diplomacy?: DiplomacyMap;
   qOffset?: number;
 }
 
@@ -114,10 +115,16 @@ export function validateCapture(state: GameState, playerId: number, q: number, r
     if (hasAdjacentOtherOwner(state, q, r, playerId) && player.points - army < terrainCost(hex.terrain)) {
       return { ok: false, error: 'Не хватает очков для битвы у границы врага' };
     }
+    if (hasPeacefulNeighbor(state, q, r, playerId)) {
+      return { ok: false, error: 'Нужно объявить войну соседнему игроку' };
+    }
     return { ok: true };
   }
   if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
   if (player.points - army < terrainCost(hex.terrain)) return { ok: false, error: 'Не хватает очков (часть занята армией)' };
+  if (hasPeacefulNeighbor(state, q, r, playerId)) {
+    return { ok: false, error: 'Нужно объявить войну соседнему игроку' };
+  }
   return { ok: true };
 }
 
@@ -127,6 +134,9 @@ export function validateAttack(state: GameState, playerId: number, q: number, r:
   const hex = findHex(state, q, r);
   if (!hex) return { ok: false, error: 'Гекс не найден' };
   if (hex.ownerId !== null && hex.ownerId === playerId) return { ok: false, error: 'Нельзя атаковать свой гекс' };
+  if (hex.ownerId !== null && hex.ownerId !== playerId && relation(state, playerId, hex.ownerId) !== 'war') {
+    return { ok: false, error: 'Нужно объявить войну' };
+  }
   if (hex.ownerId === null && hex.attackerId !== playerId) return { ok: false, error: 'Нейтральный гекс захватывается, а не атакуется' };
   if (hex.attackerId !== null && hex.attackerId !== playerId) return { ok: false, error: 'Битву уже ведёт соперник' };
   if (hex.attackerId !== playerId && !hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
@@ -324,6 +334,7 @@ export function applyEnclosure(state: GameState): EnclosureClaim[] {
     }
     const owner = enclosureOwner(state, region);
     if (owner !== null && owner !== regionOwnerId) {
+      if (regionOwnerId !== null && relation(state, owner, regionOwnerId) !== 'war') continue;
       for (const hex of region) hex.ownerId = owner;
       claims.push({ ownerId: owner, prevOwnerId: regionOwnerId, hexes: region });
     }
@@ -460,4 +471,51 @@ export function computeWinner(state: GameState): void {
   if (remaining.length === 1 && hexCount(state, remaining[0].id) > 0) {
     state.winnerId = remaining[0].id;
   }
+}
+
+export type DiplomacyRelation = 'peace' | 'war' | 'alliance';
+export type DiplomacyMap = Map<string, DiplomacyRelation>;
+
+function diplomacyKey(a: number, b: number): string {
+  return `${Math.min(a, b)}-${Math.max(a, b)}`;
+}
+
+export function relation(state: GameState, a: number, b: number): DiplomacyRelation {
+  return state.diplomacy?.get(diplomacyKey(a, b)) ?? 'peace';
+}
+
+export function alliesOf(state: GameState, playerId: number): number[] {
+  return state.players.filter((p) => p.id !== playerId && relation(state, playerId, p.id) === 'alliance').map((p) => p.id);
+}
+
+export function declareWar(state: GameState, a: number, b: number): void {
+  const d = state.diplomacy ?? (state.diplomacy = new Map());
+  d.set(diplomacyKey(a, b), 'war');
+  const alliesA = alliesOf(state, a);
+  const alliesB = alliesOf(state, b);
+  for (const sa of alliesA) d.set(diplomacyKey(sa, b), 'war');
+  for (const sb of alliesB) d.set(diplomacyKey(sb, a), 'war');
+  for (const sa of alliesA) {
+    for (const sb of alliesB) d.set(diplomacyKey(sa, sb), 'war');
+  }
+}
+
+export function makePeace(state: GameState, a: number, b: number): void {
+  const d = state.diplomacy ?? (state.diplomacy = new Map());
+  d.set(diplomacyKey(a, b), 'peace');
+}
+
+export function makeAlliance(state: GameState, a: number, b: number): void {
+  const d = state.diplomacy ?? (state.diplomacy = new Map());
+  d.set(diplomacyKey(a, b), 'alliance');
+}
+
+export function hasPeacefulNeighbor(state: GameState, q: number, r: number, playerId: number): boolean {
+  return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
+    const nq = q + dq;
+    const nr = r + dr;
+    if (!isInBounds(state, nq, nr)) return false;
+    const hex = findHex(state, nq, nr);
+    return hex !== undefined && hex.ownerId !== null && hex.ownerId !== playerId && relation(state, playerId, hex.ownerId) !== 'war';
+  });
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_COLUMNS, MAP_PRESETS, MAP_ROWS, generateMap, type Terrain } from '../src/map.js';
 import {
+  alliesOf,
   applyAttack,
   applyCapture,
   applyCut,
@@ -10,6 +11,7 @@ import {
   BASE_POINTS,
   CAPTURE_TICKS,
   computeWinner,
+  declareWar,
   DRAIN_PER_TICK,
   eliminateIfCapitalLost,
   findHex,
@@ -17,8 +19,10 @@ import {
   hexCount,
   isAdjacent,
   isInBounds,
+  makeAlliance,
   playerIncome,
   pointLimit,
+  relation,
   terrainCost,
   TERRAIN_COSTS,
   tickBattles,
@@ -177,6 +181,7 @@ describe('атака на гекс соперника', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 7, r: 5, ownerId: AI }]);
     expect(validateAttack(s, P, 7, 5, 100).ok).toBe(false);
     const s2 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI }]);
+    declareWar(s2, P, AI);
     expect(validateAttack(s2, P, 6, 5, 150).ok).toBe(true);
   });
   it('требует очки и целое число ≥ 1', () => {
@@ -192,6 +197,7 @@ describe('атака на гекс соперника', () => {
     const s2 = makeState([{ q: 5, r: 5, ownerId: P, attackerId: AI, attackInvestment: 100 }]);
     expect(validateAttack(s2, P, 5, 5, 50).ok).toBe(false);
     const s3 = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 100 }]);
+    declareWar(s3, P, AI);
     expect(validateAttack(s3, P, 6, 5, 50).ok).toBe(true);
   });
   it('долив в свою атаку увеличивает вложение', () => {
@@ -209,11 +215,13 @@ describe('атака на гекс соперника', () => {
   });
   it('первая атака требует минимум — стоимость гекса', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, terrain: 'mountain', ownerId: AI }]);
+    declareWar(s, P, AI);
     expect(validateAttack(s, P, 6, 5, 449).ok).toBe(false);
     expect(validateAttack(s, P, 6, 5, 450).ok).toBe(true);
   });
   it('долив в свою атаку может быть меньше стоимости', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: AI, attackerId: P, attackInvestment: 500 }]);
+    declareWar(s, P, AI);
     expect(validateAttack(s, P, 6, 5, 10).ok).toBe(true);
   });
   it('вложения не сбрасывают прогресс — они меняют лидера', () => {
@@ -249,6 +257,7 @@ describe('N игроков', () => {
   });
   it('атаковать можно гекс любого соперника', () => {
     const s = makeState3([{ q: 5, r: 5, ownerId: 3 }, { q: 6, r: 5, ownerId: 1 }, { q: 4, r: 5, ownerId: 2 }]);
+    declareWar(s, 2, 3);
     expect(validateAttack(s, 2, 5, 5, 150).ok).toBe(true);
   });
   it('свой гекс атаковать нельзя', () => {
@@ -594,6 +603,7 @@ describe('окружение', () => {
       { q: 4, r: 6, ownerId: P },
       { q: 5, r: 5, ownerId: AI },
     ]);
+    declareWar(s, P, AI);
     applyEnclosure(s);
     expect(findHex(s, 5, 5)!.ownerId).toBe(P);
   });
@@ -610,6 +620,7 @@ describe('окружение', () => {
       { q: 5, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: AI },
     ]);
+    declareWar(s, P, AI);
     applyEnclosure(s);
     expect(findHex(s, 5, 5)!.ownerId).toBe(P);
     expect(findHex(s, 6, 5)!.ownerId).toBe(P);
@@ -802,5 +813,51 @@ describe('выбытие', () => {
     const battle = s.hexes.find((h) => h.q === 2 && h.r === 2)!;
     expect(battle.attackerId).toBeNull();
     expect(battle.attackInvestment).toBe(0);
+  });
+});
+
+describe('дипломатия', () => {
+  it('по умолчанию все в мире', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI }]);
+    expect(relation(s, P, AI)).toBe('peace');
+  });
+  it('объявление войны втягивает союзников обеих сторон', () => {
+    const s = makeState([], [
+      { id: 1, points: 100 }, { id: 2, points: 100 },
+      { id: 3, points: 100 }, { id: 4, points: 100 },
+    ]);
+    makeAlliance(s, P, 3);
+    makeAlliance(s, AI, 4);
+    declareWar(s, P, AI);
+    expect(relation(s, P, AI)).toBe('war');
+    expect(relation(s, 3, AI)).toBe('war');
+    expect(relation(s, P, 4)).toBe('war');
+    expect(relation(s, 3, 4)).toBe('war');
+    expect(relation(s, P, 3)).toBe('alliance');
+    expect(alliesOf(s, P)).toEqual([3]);
+  });
+  it('в мире нельзя атаковать чужой гекс', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI }, { q: 6, r: 5, ownerId: P }]);
+    expect(validateAttack(s, P, 5, 5, 200).ok).toBe(false);
+    declareWar(s, P, AI);
+    expect(validateAttack(s, P, 5, 5, 200).ok).toBe(true);
+  });
+  it('в мире нельзя захватывать нейтральный гекс у границы врага', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI }, { q: 6, r: 5, ownerId: P }, { q: 5, r: 6 }]);
+    expect(validateCapture(s, P, 5, 6).ok).toBe(false);
+    declareWar(s, P, AI);
+    expect(validateCapture(s, P, 5, 6).ok).toBe(true);
+  });
+  it('окружение не захватывает владение без войны', () => {
+    const s = makeState([{ q: 7, r: 6, ownerId: P }, { q: 8, r: 6, ownerId: P }]);
+    s.players[0].capital = { q: 7, r: 6 };
+    for (const [q, r] of [[6,6],[7,7],[7,5],[8,5],[6,7],[9,6],[8,7],[9,5]]) {
+      s.hexes.find((h) => h.q === q && h.r === r)!.ownerId = AI;
+    }
+    applyEnclosure(s);
+    expect(s.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId).toBe(P);
+    declareWar(s, P, AI);
+    applyEnclosure(s);
+    expect(s.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId).toBe(AI);
   });
 });
