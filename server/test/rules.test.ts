@@ -374,6 +374,26 @@ describe('экономика', () => {
   });
 });
 
+describe('доход с множителем', () => {
+  it('множитель 0.5 округляет доход вниз', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: P }, { q: 7, r: 5, ownerId: P }]);
+    s.players[0].incomeMultiplier = 0.5;
+    applyIncome(s);
+    expect(s.players[0].points).toBe(1003); // 3 гекса × 2 очка = 6, × 0.5 = 3
+  });
+  it('без множителя доход как раньше', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }]);
+    applyIncome(s);
+    expect(s.players[0].points).toBe(1002);
+  });
+  it('множитель 1 не меняет доход', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, ownerId: P }]);
+    s.players[0].incomeMultiplier = 1;
+    applyIncome(s);
+    expect(s.players[0].points).toBe(1004);
+  });
+});
+
 describe('столица', () => {
   it('первый захваченный гекс становится столицей', () => {
     const s = makeState([{ q: 5, r: 5 }]);

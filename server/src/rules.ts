@@ -15,6 +15,7 @@ export interface PlayerState {
   name?: string;
   points: number;
   isAi?: boolean;
+  incomeMultiplier?: number;
   capital?: { q: number; r: number } | null;
   eliminated?: boolean;
 }
@@ -284,7 +285,8 @@ export function playerIncome(state: GameState, playerId: number): number {
 export function applyIncome(state: GameState): void {
   for (const player of state.players) {
     const count = hexCount(state, player.id);
-    player.points = Math.min(player.points + playerIncome(state, player.id), pointLimit(count));
+    const income = Math.floor(playerIncome(state, player.id) * (player.incomeMultiplier ?? 1));
+    player.points = Math.min(player.points + income, pointLimit(count));
   }
 }
 
