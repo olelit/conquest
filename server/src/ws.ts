@@ -31,7 +31,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
       playerId: manager.viewerPlayerId(connId),
       auth: manager.authProfileFor(connId),
       rooms: manager.lobby(),
-      room: manager.roomForConn(connId)?.view() ?? null,
+      room: manager.roomForConn(connId)?.view(manager.viewerPlayerId(connId)) ?? null,
     });
   };
 

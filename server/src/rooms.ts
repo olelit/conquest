@@ -20,13 +20,14 @@ export interface RoomSlot {
 export interface ViewPlayer {
   id: number;
   name: string;
-  points: number;
+  points: number | null;
   hexCount: number;
-  income: number;
-  limit: number;
+  income: number | null;
+  limit: number | null;
   isAi: boolean;
   capital: { q: number; r: number } | null;
   eliminated: boolean;
+  relation: 'self' | 'ally' | 'enemy';
 }
 
 export interface ViewGame {
@@ -34,6 +35,7 @@ export interface ViewGame {
   hexes: HexState[];
   winnerId: number | null;
   captureTicks: number;
+  pendingProposals: { from: number; kind: 'peace' | 'alliance' }[];
 }
 
 export interface RoomView {
@@ -551,7 +553,8 @@ export class Room {
     if (slot) slot.name = name;
   }
 
-  view(): RoomView {
+  view(playerId: number | null = null): RoomView {
+    const state = this.state;
     return {
       id: this.id,
       name: this.name,
@@ -562,22 +565,28 @@ export class Room {
       hostPlayerId: this.hostPlayerId,
       slots: this.slots.map((s) => ({ id: s.id, name: s.name, isAi: s.isAi })),
       paused: this.paused,
-      game: this.state
+      game: state
         ? {
-            players: this.state.players.map((p) => ({
-              id: p.id,
-              name: p.name ?? `Игрок ${p.id}`,
-              points: p.points,
-              hexCount: rules.hexCount(this.state!, p.id),
-              income: rules.playerIncome(this.state!, p.id),
-              limit: rules.pointLimit(rules.hexCount(this.state!, p.id)),
-              isAi: p.isAi ?? false,
-              capital: p.capital ?? null,
-              eliminated: p.eliminated ?? false,
-            })),
-            hexes: this.state.hexes,
-            winnerId: this.state.winnerId,
+            players: state.players.map((p) => {
+              const rel = p.id === playerId ? 'self' : playerId !== null && rules.relation(state, playerId, p.id) === 'alliance' ? 'ally' : 'enemy';
+              const hidden = playerId !== null && rel === 'enemy';
+              return {
+                id: p.id,
+                name: p.name ?? `Игрок ${p.id}`,
+                points: hidden ? null : p.points,
+                hexCount: rules.hexCount(state, p.id),
+                income: hidden ? null : rules.playerIncome(state, p.id),
+                limit: hidden ? null : rules.pointLimit(rules.hexCount(state, p.id)),
+                isAi: p.isAi ?? false,
+                capital: p.capital ?? null,
+                eliminated: p.eliminated ?? false,
+                relation: rel,
+              };
+            }),
+            hexes: state.hexes,
+            winnerId: state.winnerId,
             captureTicks: rules.CAPTURE_TICKS,
+            pendingProposals: playerId !== null ? this.pendingProposals.filter((p) => p.to === playerId).map((p) => ({ from: p.from, kind: p.kind })) : [],
           }
         : null,
       log: this.log,

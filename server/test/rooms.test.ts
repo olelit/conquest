@@ -622,4 +622,30 @@ describe('Room: дипломатия', () => {
     room.tick();
     expect(room['scoutCache']!.hexCount).toBeGreaterThan(before!.hexCount);
   });
+  it('view: враг не видит очки/доход, союзник видит', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const enemy = room.view(1).game!.players.find((p) => p.id === ai.id)!;
+    expect(enemy.points).toBeNull();
+    expect(enemy.relation).toBe('enemy');
+    const self = room.view(1).game!.players.find((p) => p.id === 1)!;
+    expect(self.points).not.toBeNull();
+    expect(self.relation).toBe('self');
+    rules.makeAlliance(g, 1, ai.id);
+    const ally = room.view(1).game!.players.find((p) => p.id === ai.id)!;
+    expect(ally.points).not.toBeNull();
+    expect(ally.relation).toBe('ally');
+  });
+  it('view: входящие предложения видны адресату', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const ai = room.gameState!.players.find((p) => p.isAi)!;
+    room['pendingProposals'] = [{ from: ai.id, to: 1, kind: 'alliance' }];
+    const proposals = room.view(1).game!.pendingProposals;
+    expect(proposals).toEqual([{ from: ai.id, kind: 'alliance' }]);
+  });
 });
