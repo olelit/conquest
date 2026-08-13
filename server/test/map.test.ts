@@ -29,12 +29,12 @@ describe('generateMap', () => {
     expect(land).toBeLessThanOrEqual(160);
     expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
   });
-  it('беларусь: суша 160–200 гексов, остальное — вода', () => {
+  it('беларусь: суша 300–400 гексов, остальное — вода', () => {
     const hexes = generateMap('belarus');
-    expect(hexes).toHaveLength(24 * 12);
+    expect(hexes).toHaveLength(34 * 18);
     const land = hexes.filter((h) => h.terrain !== 'water').length;
-    expect(land).toBeGreaterThanOrEqual(160);
-    expect(land).toBeLessThanOrEqual(200);
+    expect(land).toBeGreaterThanOrEqual(300);
+    expect(land).toBeLessThanOrEqual(400);
     expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
   });
   it('гор меньше 15% и больше 5% на большой выборке', () => {

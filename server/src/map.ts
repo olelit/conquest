@@ -25,29 +25,35 @@ export const MAP_PRESETS: Record<MapType, MapPreset> = {
   long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1, qOffset: 0 },
-  belarus: { columns: 24, rows: 12, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -6 },
+  belarus: { columns: 34, rows: 18, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -7 },
 };
 
 export const MAP_COLUMNS = MAP_PRESETS.normal.columns;
 export const MAP_ROWS = MAP_PRESETS.normal.rows;
 export const MOUNTAIN_TO_MINE_CHANCE = config.mineChance;
 
-// Контур Беларуси построен по реальным координатам границы
-// (долгота 23.2–32.8, широта 51.3–56.2), приведённым к гекс-сетке
-// u = q + r/2. Юго-западный выступ (Брест) уходит в отрицательные q.
-const BELARUS_ROWS: [number, number][] = [
-  [16, 16],
-  [6, 16],
-  [5, 16],
-  [3, 16],
-  [2, 17],
-  [0, 17],
-  [-1, 17],
-  [-2, 16],
-  [-3, 15],
-  [-4, 14],
-  [-4, 12],
-  [-4, 10],
+// Контур Беларуси построен по ASCII-эталону (github.com/acidus99/ascii-countries, by.80.txt):
+// шапка на севере (Витебск), западная диагональ (Литва→Польша→Брест),
+// широкое тело и нижний выступ юго-востока. u = q + r/2. null = ряд полностью в воде.
+const BELARUS_ROWS: ([number, number] | null)[] = [
+  null,
+  [15, 19],
+  [11, 23],
+  [10, 23],
+  [9, 23],
+  [7, 22],
+  [6, 22],
+  [4, 22],
+  [-2, 24],
+  [-2, 25],
+  [-2, 26],
+  [-2, 24],
+  [-3, 21],
+  [-5, 21],
+  [-7, 20],
+  [-5, 19],
+  [-7, 16],
+  [5, 15],
 ];
 
 export function generateMap(type: MapType = 'normal'): Hex[] {
