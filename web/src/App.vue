@@ -157,6 +157,25 @@ function onMenuKeydown(e: KeyboardEvent): void {
   if (e.code === 'Escape') closeContextMenu();
 }
 
+function onMenuMouseDown(): void {
+  if (contextMenu.value !== null) {
+    suppressNextHexClick = true;
+    closeContextMenu();
+  }
+}
+
+function onMenuClick(): void {
+  suppressNextHexClick = false;
+}
+
+function onMenuContextMenu(e: MouseEvent): void {
+  if (contextMenu.value === null) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('.context-menu')) return;
+  if (target?.closest('.hex-group')) return;
+  closeContextMenu();
+}
+
 function onArmyChange(points: number): void {
   army.value = points;
 }
@@ -227,24 +246,11 @@ function initGoogleButton(): void {
 
 onMounted(() => {
   client.connect();
-  window.addEventListener('mousedown', () => {
-    if (contextMenu.value !== null) {
-      suppressNextHexClick = true;
-      closeContextMenu();
-    }
-  });
-  window.addEventListener('click', () => {
-    suppressNextHexClick = false;
-  });
+  window.addEventListener('mousedown', onMenuMouseDown);
+  window.addEventListener('click', onMenuClick);
   window.addEventListener('keydown', onMenuKeydown);
   window.addEventListener('blur', closeContextMenu);
-  window.addEventListener('contextmenu', (e) => {
-    if (contextMenu.value === null) return;
-    const target = e.target as HTMLElement | null;
-    if (target?.closest('.context-menu')) return;
-    if (target?.closest('.hex-group')) return;
-    closeContextMenu();
-  });
+  window.addEventListener('contextmenu', onMenuContextMenu);
   if (GOOGLE_CLIENT_ID) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -256,24 +262,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   client.close();
-  window.removeEventListener('mousedown', () => {
-    if (contextMenu.value !== null) {
-      suppressNextHexClick = true;
-      closeContextMenu();
-    }
-  });
-  window.removeEventListener('click', () => {
-    suppressNextHexClick = false;
-  });
+  window.removeEventListener('mousedown', onMenuMouseDown);
+  window.removeEventListener('click', onMenuClick);
   window.removeEventListener('keydown', onMenuKeydown);
   window.removeEventListener('blur', closeContextMenu);
-  window.removeEventListener('contextmenu', (e) => {
-    if (contextMenu.value === null) return;
-    const target = e.target as HTMLElement | null;
-    if (target?.closest('.context-menu')) return;
-    if (target?.closest('.hex-group')) return;
-    closeContextMenu();
-  });
+  window.removeEventListener('contextmenu', onMenuContextMenu);
 });
 </script>
 
