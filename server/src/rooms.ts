@@ -506,7 +506,6 @@ export class Room {
           this.addLog(`${name} вложил ${action.points} очков в атаку на (${action.q}, ${action.r})`);
           this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'attack', q: action.q, r: action.r });
           this.noteAttack(action.q, action.r, Date.now());
-          this.recordReaction(playerId, action.q, action.r, Date.now());
         }
         break;
       case 'defend':
