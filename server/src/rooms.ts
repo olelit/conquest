@@ -377,10 +377,7 @@ export class Room {
       case 'capture': {
         validation = rules.validateCapture(this.state, playerId, msg.q, msg.r, Math.max(0, Math.floor(Number(msg.army) || 0)));
         if (!validation.ok) return { type: 'error', message: validation.error };
-        const hex = rules.findHex(this.state, msg.q, msg.r)!;
-        const cost = rules.hexCount(this.state, playerId) === 0 ? 0 : rules.terrainCost(hex.terrain);
         rules.applyCapture(this.state, playerId, msg.q, msg.r);
-        this.addLog(`${this.playerName(playerId)} захватил (${msg.q}, ${msg.r}) за ${cost} очков`);
         this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: msg.q, r: msg.r });
         return { type: 'state' };
       }
@@ -504,10 +501,7 @@ export class Room {
     switch (action.type) {
       case 'capture':
         if (rules.validateCapture(state, playerId, action.q, action.r).ok) {
-          const hex = rules.findHex(state, action.q, action.r)!;
-          const cost = rules.hexCount(state, playerId) === 0 ? 0 : rules.terrainCost(hex.terrain);
           rules.applyCapture(state, playerId, action.q, action.r);
-          this.addLog(`${name} захватил (${action.q}, ${action.r}) за ${cost} очков`);
           this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: action.q, r: action.r });
           this.recordReaction(playerId, action.q, action.r, Date.now());
         }

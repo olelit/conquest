@@ -139,6 +139,15 @@ describe('Room: действия и тик', () => {
     expect(solo.handleAction(1, 'pause', {}).type).toBe('state');
     expect(solo.paused).toBe(true);
   });
+  it('лог не содержит сообщений о захватах', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    room.handleAction(1, 'capture', { q: 0, r: 0 });
+    room.tick();
+    const log = room.view().log;
+    expect(log.some((entry) => entry.includes('захватил'))).toBe(false);
+  });
   it('тик: AI захватывает первый гекс, доход не падает', () => {
     const room = makeRoom(true, 1, 2);
     room.addHuman('A', 1);
