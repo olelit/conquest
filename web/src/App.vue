@@ -317,8 +317,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
-        <div v-if="winner && defeated" class="banner banner--error">Поражение: {{ winner }}!</div>
-        <div v-else-if="winner" class="banner banner--win">Победа: {{ winner }}!</div>
+        <div v-if="winner && defeated" class="banner banner--error banner--center">Поражение: {{ winner }}!</div>
+        <div v-else-if="winner" class="banner banner--win banner--center">Победа: {{ winner }}!</div>
         <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
         <Hud v-if="game" :game="game" :human-id="playerId" :army="army" />
@@ -359,12 +359,16 @@ onBeforeUnmount(() => {
 }
 
 .app__header {
-  width: 100%;
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  left: auto;
+  width: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  position: relative;
+  justify-content: flex-end;
+  gap: 14px;
+  margin: 0;
   z-index: 40;
 }
 
@@ -375,6 +379,9 @@ onBeforeUnmount(() => {
 
 .app__header h1 {
   margin: 0;
+  font-size: 17px;
+  color: #ccc;
+  white-space: nowrap;
 }
 
 .app__btn {
@@ -579,6 +586,17 @@ onBeforeUnmount(() => {
 .banner--error {
   background: #c62828;
   color: #fff;
+}
+
+.banner--center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  font-size: 26px;
+  padding: 14px 34px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
 
 .log-panel {

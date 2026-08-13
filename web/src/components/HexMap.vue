@@ -147,8 +147,8 @@ function clampView(v: ViewBox): ViewBox {
   const marginH = base.h * PAN_MARGIN;
   return {
     ...v,
-    x: clamp(v.x, base.x - marginW, base.x + base.w + marginW - v.w),
-    y: clamp(v.y, base.y - marginH, base.y + base.h + marginH - v.h),
+    x: clamp(v.x, base.x - marginW - v.w, base.x + base.w + marginW),
+    y: clamp(v.y, base.y - marginH - v.h, base.y + base.h + marginH),
   };
 }
 
