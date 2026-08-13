@@ -1,6 +1,6 @@
 export type Terrain = 'grass' | 'forest' | 'mountain' | 'water' | 'desert' | 'mine';
 
-export type MapType = 'normal' | 'long' | 'island' | 'round' | 'belarus';
+export type MapType = 'normal' | 'long' | 'island' | 'round';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -17,7 +17,6 @@ export const MAP_INFO: Record<MapType, MapInfo> = {
   long: { label: 'Длинная', description: 'полоса 24×9', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
   island: { label: 'Остров', description: 'овал с водой по краям', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
   round: { label: 'Круглая', description: 'круг радиусом 9', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
-  belarus: { label: 'Беларусь', description: 'по очертаниям реальной страны', minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
 };
 
 export const PLAYER_COLORS = ['#9c27b0', '#e53935', '#00897b', '#fb8c00', '#1e88e5', '#43a047'];

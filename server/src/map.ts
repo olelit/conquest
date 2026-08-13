@@ -3,7 +3,7 @@ import { config } from './config.js';
 export const TERRAINS = ['grass', 'forest', 'mountain', 'water', 'desert', 'mine'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
-export type MapType = 'normal' | 'long' | 'island' | 'round' | 'belarus';
+export type MapType = 'normal' | 'long' | 'island' | 'round';
 
 export interface Hex {
   q: number;
@@ -25,48 +25,11 @@ export const MAP_PRESETS: Record<MapType, MapPreset> = {
   long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1, qOffset: 0 },
-  belarus: { columns: 56, rows: 30, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -12 },
 };
 
 export const MAP_COLUMNS = MAP_PRESETS.normal.columns;
 export const MAP_ROWS = MAP_PRESETS.normal.rows;
 export const MOUNTAIN_TO_MINE_CHANCE = config.mineChance;
-
-// Контур Беларуси построен по ASCII-эталону (github.com/acidus99/ascii-countries, by.80.txt):
-// шапка на севере (Витебск), западная диагональ (Литва→Польша→Брест),
-// широкое тело и нижний выступ юго-востока. u = q + r/2.
-const BELARUS_ROWS: [number, number][] = [
-  [27, 27],
-  [26, 32],
-  [25, 37],
-  [19, 38],
-  [18, 39],
-  [17, 38],
-  [17, 39],
-  [15, 38],
-  [12, 37],
-  [11, 37],
-  [10, 37],
-  [9, 38],
-  [6, 39],
-  [4, 40],
-  [-4, 39],
-  [-4, 43],
-  [-4, 43],
-  [-4, 43],
-  [-4, 41],
-  [-4, 34],
-  [-5, 35],
-  [-6, 35],
-  [-9, 35],
-  [-11, 34],
-  [-10, 35],
-  [-9, 32],
-  [-10, 29],
-  [-11, 28],
-  [-12, 26],
-  [16, 26],
-];
 
 export function generateMap(type: MapType = 'normal'): Hex[] {
   const preset = MAP_PRESETS[type];
@@ -75,30 +38,11 @@ export function generateMap(type: MapType = 'normal'): Hex[] {
   for (let r = 0; r < preset.rows; r++) {
     for (let q = qMin; q < qMin + preset.columns; q++) {
       if (type === 'round' && !isInCircle(q, r)) continue;
-      const land = isLand(type, preset, q, r);
-      // для Беларуси вода только у берега: пустые клетки вдали от суши не создаём
-      if (!land && type === 'belarus' && !belarusHasLandNeighbor(q, r)) continue;
-      const terrain = land ? randomTerrain() : 'water';
+      const terrain = isLand(type, preset, q, r) ? randomTerrain() : 'water';
       hexes.push({ q, r, terrain });
     }
   }
   return hexes;
-}
-
-const NEIGHBOR_OFFSETS: [number, number][] = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, -1],
-  [-1, 1],
-];
-
-function belarusHasLandNeighbor(q: number, r: number): boolean {
-  return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
-    const row = BELARUS_ROWS[r + dr];
-    return row !== undefined && q + dq >= row[0] && q + dq <= row[1];
-  });
 }
 
 function isInCircle(q: number, r: number): boolean {
@@ -120,11 +64,6 @@ function isLand(type: MapType, preset: MapPreset, q: number, r: number): boolean
       const dq = q - cq;
       const dr = r - cr;
       return (dq * dq) / 49 + (dr * dr) / 36 <= 1;
-    }
-    case 'belarus': {
-      const row = BELARUS_ROWS[r];
-      if (!row) return false;
-      return q >= row[0] && q <= row[1];
     }
   }
 }

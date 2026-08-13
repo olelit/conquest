@@ -257,7 +257,8 @@ const tooltipPos = computed(() => {
   const left = ((center.x - v.x) / v.w) * rect.width;
   const top = ((center.y - v.y) / v.h) * rect.height;
   const clampedLeft = Math.min(Math.max(left, 75), Math.max(75, rect.width - 75));
-  return { left: clampedLeft, top: Math.max(70, top) };
+  const clampedTop = Math.min(Math.max(top, 70), Math.max(70, rect.height - 150));
+  return { left: clampedLeft, top: clampedTop };
 });
 
 function terrainFill(hex: Hex): string {
@@ -439,7 +440,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 
 .battle-tooltip {
   position: absolute;
-  transform: translate(-50%, calc(-100% - 12px));
+  transform: translate(-50%, 12px);
   background: rgba(20, 20, 26, 0.94);
   border: 1px solid #555;
   border-radius: 8px;

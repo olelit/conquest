@@ -29,16 +29,6 @@ describe('generateMap', () => {
     expect(land).toBeLessThanOrEqual(160);
     expect(hexes.filter((h) => h.terrain === 'water').length).toBeGreaterThan(0);
   });
-  it('беларусь: суша 850–1100, вода только у берега (меньше полного прямоугольника)', () => {
-    const hexes = generateMap('belarus');
-    expect(hexes.length).toBeLessThan(56 * 30);
-    const land = hexes.filter((h) => h.terrain !== 'water').length;
-    expect(land).toBeGreaterThanOrEqual(850);
-    expect(land).toBeLessThanOrEqual(1100);
-    const water = hexes.filter((h) => h.terrain === 'water').length;
-    expect(water).toBeGreaterThan(0);
-    expect(water).toBeLessThan(500);
-  });
   it('гор меньше 15% и больше 5% на большой выборке', () => {
     const hexes = Array.from({ length: 50 }, () => generateMap('normal')).flat();
     const mountains = hexes.filter((h) => h.terrain === 'mountain').length;
@@ -46,7 +36,7 @@ describe('generateMap', () => {
     expect(mountains / hexes.length).toBeGreaterThan(0.05);
   });
   it('все гексы в границах пресета', () => {
-    for (const type of ['normal', 'long', 'island', 'round', 'belarus'] as MapType[]) {
+    for (const type of ['normal', 'long', 'island', 'round'] as MapType[]) {
       const preset = MAP_PRESETS[type];
       for (const hex of generateMap(type)) {
         expect(hex.q).toBeGreaterThanOrEqual(preset.qOffset);
