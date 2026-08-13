@@ -25,7 +25,7 @@ export const MAP_PRESETS: Record<MapType, MapPreset> = {
   long: { columns: 24, rows: 9, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   island: { columns: 15, rows: 13, minPlayers: 2, maxPlayers: 4, recommendedAi: 1, qOffset: 0 },
   round: { columns: 19, rows: 19, minPlayers: 2, maxPlayers: 6, recommendedAi: 1, qOffset: 0 },
-  belarus: { columns: 34, rows: 18, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -7 },
+  belarus: { columns: 45, rows: 24, minPlayers: 2, maxPlayers: 5, recommendedAi: 1, qOffset: -9 },
 };
 
 export const MAP_COLUMNS = MAP_PRESETS.normal.columns;
@@ -34,26 +34,32 @@ export const MOUNTAIN_TO_MINE_CHANCE = config.mineChance;
 
 // Контур Беларуси построен по ASCII-эталону (github.com/acidus99/ascii-countries, by.80.txt):
 // шапка на севере (Витебск), западная диагональ (Литва→Польша→Брест),
-// широкое тело и нижний выступ юго-востока. u = q + r/2. null = ряд полностью в воде.
-const BELARUS_ROWS: ([number, number] | null)[] = [
-  null,
-  [15, 19],
-  [11, 23],
-  [10, 23],
-  [9, 23],
-  [7, 22],
-  [6, 22],
-  [4, 22],
-  [-2, 24],
-  [-2, 25],
-  [-2, 26],
-  [-2, 24],
-  [-3, 21],
-  [-5, 21],
-  [-7, 20],
-  [-5, 19],
-  [-7, 16],
-  [5, 15],
+// широкое тело и нижний выступ юго-востока. u = q + r/2.
+const BELARUS_ROWS: [number, number][] = [
+  [22, 22],
+  [20, 26],
+  [17, 30],
+  [15, 31],
+  [14, 30],
+  [12, 31],
+  [10, 30],
+  [9, 30],
+  [8, 30],
+  [7, 30],
+  [3, 32],
+  [-3, 32],
+  [-3, 34],
+  [-3, 35],
+  [-3, 33],
+  [-4, 28],
+  [-4, 28],
+  [-5, 28],
+  [-8, 28],
+  [-9, 27],
+  [-7, 25],
+  [-8, 23],
+  [-9, 21],
+  [13, 21],
 ];
 
 export function generateMap(type: MapType = 'normal'): Hex[] {
