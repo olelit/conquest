@@ -32,6 +32,7 @@ const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
 const burgerOpen = ref(false);
 const army = ref(20);
 const contextMenu = ref<{ hex: Hex; x: number; y: number } | null>(null);
+let suppressNextHexClick = false;
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
 const aiDifficulty = ref<Difficulty>('medium');
@@ -72,6 +73,11 @@ watch(createMapType, () => {
   if (createMaxPlayers.value < info.minPlayers) createMaxPlayers.value = info.minPlayers;
 });
 
+watch(
+  () => room.value,
+  () => closeContextMenu(),
+);
+
 const client = new GameClient();
 client.onState = (_state, pid, authProfile, rms, rm) => {
   playerId.value = pid;
@@ -110,6 +116,10 @@ function isAdjacentToMine(hex: Hex): boolean {
 }
 
 function onHexClick(hex: Hex): void {
+  if (suppressNextHexClick) {
+    suppressNextHexClick = false;
+    return;
+  }
   if (playerId.value === null) return;
   if (myPlayer.value?.eliminated) return;
   const send = armyPoints();
@@ -132,6 +142,10 @@ function onHexClick(hex: Hex): void {
 }
 
 function onContextMenu(payload: { hex: Hex; x: number; y: number }): void {
+  if (payload.hex.ownerId === null) {
+    closeContextMenu();
+    return;
+  }
   contextMenu.value = payload;
 }
 
@@ -213,9 +227,24 @@ function initGoogleButton(): void {
 
 onMounted(() => {
   client.connect();
-  window.addEventListener('click', closeContextMenu);
+  window.addEventListener('mousedown', () => {
+    if (contextMenu.value !== null) {
+      suppressNextHexClick = true;
+      closeContextMenu();
+    }
+  });
+  window.addEventListener('click', () => {
+    suppressNextHexClick = false;
+  });
   window.addEventListener('keydown', onMenuKeydown);
   window.addEventListener('blur', closeContextMenu);
+  window.addEventListener('contextmenu', (e) => {
+    if (contextMenu.value === null) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('.context-menu')) return;
+    if (target?.closest('.hex-group')) return;
+    closeContextMenu();
+  });
   if (GOOGLE_CLIENT_ID) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -227,9 +256,24 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   client.close();
-  window.removeEventListener('click', closeContextMenu);
+  window.removeEventListener('mousedown', () => {
+    if (contextMenu.value !== null) {
+      suppressNextHexClick = true;
+      closeContextMenu();
+    }
+  });
+  window.removeEventListener('click', () => {
+    suppressNextHexClick = false;
+  });
   window.removeEventListener('keydown', onMenuKeydown);
   window.removeEventListener('blur', closeContextMenu);
+  window.removeEventListener('contextmenu', (e) => {
+    if (contextMenu.value === null) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('.context-menu')) return;
+    if (target?.closest('.hex-group')) return;
+    closeContextMenu();
+  });
 });
 </script>
 
