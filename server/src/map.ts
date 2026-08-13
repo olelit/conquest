@@ -75,11 +75,30 @@ export function generateMap(type: MapType = 'normal'): Hex[] {
   for (let r = 0; r < preset.rows; r++) {
     for (let q = qMin; q < qMin + preset.columns; q++) {
       if (type === 'round' && !isInCircle(q, r)) continue;
-      const terrain = isLand(type, preset, q, r) ? randomTerrain() : 'water';
+      const land = isLand(type, preset, q, r);
+      // для Беларуси вода только у берега: пустые клетки вдали от суши не создаём
+      if (!land && type === 'belarus' && !belarusHasLandNeighbor(q, r)) continue;
+      const terrain = land ? randomTerrain() : 'water';
       hexes.push({ q, r, terrain });
     }
   }
   return hexes;
+}
+
+const NEIGHBOR_OFFSETS: [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, -1],
+  [-1, 1],
+];
+
+function belarusHasLandNeighbor(q: number, r: number): boolean {
+  return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
+    const row = BELARUS_ROWS[r + dr];
+    return row !== undefined && q + dq >= row[0] && q + dq <= row[1];
+  });
 }
 
 function isInCircle(q: number, r: number): boolean {

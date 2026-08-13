@@ -70,7 +70,12 @@ const viewTransform = computed(() => {
   const base = baseViewBox.value;
   const v = view.value ?? base;
   const scale = base.w / v.w;
-  return `translate(${base.x - v.x * scale} ${base.y - v.y * scale}) scale(${scale})`;
+  // привязка сдвига к целым пикселям экрана: убирает субпиксельное «дрожание»
+  // граней гексов на больших картах (композитинг без пересэмплинга)
+  const pxPerUnit = mapWrap.value ? mapWrap.value.clientWidth / base.w : 1;
+  const tx = Math.round((base.x - v.x * scale) * pxPerUnit) / pxPerUnit;
+  const ty = Math.round((base.y - v.y * scale) * pxPerUnit) / pxPerUnit;
+  return `translate(${tx} ${ty}) scale(${scale})`;
 });
 
 watch(baseViewBox, (b) => {
