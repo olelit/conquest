@@ -49,7 +49,7 @@
 - `start`: в `Room.start()` и `Room.restart()` (для рестарта — новый лог, события продолжают писаться в тот же recorder; стартовое событие перезаписывает meta).
 - `action`: в `handleAction` (capture/attack/defend — только успешные, после валидации) и в `applyAiAction` (успешные действия ИИ).
 - `battle`: в `tick()` для каждого `BattleResult` (включая ничьи).
-- `reaction`: в `applyAiAction` — если действие ИИ (defend/attack) относится к гексу, на который была атака (attackInvestment > 0), и с момента атаки прошло < 30 сек — зафиксировать `ms = now - attackStartedAt`. Время начала атаки хранить в `Map<string, number>` (ключ `q,r`), заполняется в `applyAttack`/`applyCapture` (для ИИ-гексов) и в `applyAiAction` при атаке на чужой гекс; удаляется после фиксации реакции.
+- `reaction`: в `applyAiAction` — если действие ИИ (defend/attack/capture) относится к гексу, на который ранее была начата атака на владение ИИ, зафиксировать `ms = now - attackStartedAt`. Таймеры хранятся в комнате: `private attackStartedAt = new Map<string, number>()` (ключ `${q},${r}`). Заполняется на уровне комнаты: в `handleAction` и в `applyAiAction` при успешной атаке/захвате с битвой по гексу, который владеет ИИ (или нейтральному соседнему с ИИ); очищается после фиксации реакции или через 30 сек (проверка `now - started < 30000`).
 - `snapshot`: в `tick()` — каждые 10 тиков (счётчик `tickCounter`), по всем игрокам.
 - `end`: в `tick()` при установке `finishedAt`.
 
