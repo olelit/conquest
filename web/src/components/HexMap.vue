@@ -2,9 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { playerColor, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
-const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number }>();
+const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number; menuOpen?: boolean }>();
 
-const emit = defineEmits<{ click: [hex: Hex] }>();
+const emit = defineEmits<{
+  click: [hex: Hex];
+  contextmenu: [payload: { hex: Hex; x: number; y: number }];
+}>();
 
 const HEX_SIZE = 30;
 const SQRT3 = Math.sqrt(3);
@@ -83,6 +86,10 @@ watch(baseViewBox, (b) => {
 });
 
 const mapWrap = ref<HTMLDivElement | null>(null);
+
+function onContextMenu(hex: Hex, e: MouseEvent): void {
+  emit('contextmenu', { hex, x: e.clientX, y: e.clientY });
+}
 
 function onWheel(e: WheelEvent): void {
   e.preventDefault();
@@ -300,6 +307,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
         :key="`${hex.q},${hex.r}`"
         class="hex-group"
         @click="emit('click', hex)"
+        @contextmenu="onContextMenu(hex, $event)"
         @mouseenter="hoveredPos = { q: hex.q, r: hex.r }"
         @mouseleave="hoveredPos = null"
       >
@@ -336,7 +344,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
     </svg>
 
     <div
-      v-if="tooltipPos && hovered"
+      v-if="!menuOpen && tooltipPos && hovered"
       class="battle-tooltip"
       :style="{ left: tooltipPos.left + 'px', top: tooltipPos.top + 'px' }"
     >
