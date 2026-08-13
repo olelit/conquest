@@ -2,6 +2,8 @@ export type Terrain = 'grass' | 'forest' | 'mountain' | 'water' | 'desert' | 'mi
 
 export type MapType = 'normal' | 'long' | 'island' | 'round' | 'belarus';
 
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface MapInfo {
   label: string;
   description: string;
@@ -91,7 +93,7 @@ export type ClientMessage =
   | { type: 'restart' }
   | { type: 'menu' }
   | { type: 'leave-room' }
-  | { type: 'start-solo'; mapType: MapType; aiCount: number }
+  | { type: 'start-solo'; mapType: MapType; aiCount: number; difficulty: Difficulty }
   | { type: 'create-room'; mapType: MapType; maxPlayers: number }
   | { type: 'join-room'; roomId: number }
   | { type: 'start-room' }

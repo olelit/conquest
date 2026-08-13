@@ -1,4 +1,4 @@
-import type { AuthProfile, ClientMessage, GameState, MapType, RoomLobbyInfo, RoomView, ServerMessage } from './types';
+import type { AuthProfile, ClientMessage, Difficulty, GameState, MapType, RoomLobbyInfo, RoomView, ServerMessage } from './types';
 
 const MAX_RECONNECT_DELAY_MS = 10000;
 
@@ -51,8 +51,8 @@ export class GameClient {
     this.send({ type: 'menu' });
   }
 
-  sendStartSolo(mapType: MapType, aiCount: number): void {
-    this.send({ type: 'start-solo', mapType, aiCount });
+  sendStartSolo(mapType: MapType, aiCount: number, difficulty: Difficulty): void {
+    this.send({ type: 'start-solo', mapType, aiCount, difficulty });
   }
 
   sendCreateRoom(mapType: MapType, maxPlayers: number): void {

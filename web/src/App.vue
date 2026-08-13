@@ -4,7 +4,7 @@ import ArmyBar from './components/ArmyBar.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
-import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
+import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Difficulty, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
 
 declare global {
   interface Window {
@@ -32,6 +32,7 @@ const burgerOpen = ref(false);
 const army = ref(20);
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
+const aiDifficulty = ref<Difficulty>('medium');
 const createMapType = ref<MapType>('normal');
 const createMaxPlayers = ref(5);
 
@@ -160,7 +161,7 @@ function goToLobby(): void {
 }
 
 function startSolo(): void {
-  client.sendStartSolo(aiMapType.value, aiCount.value);
+  client.sendStartSolo(aiMapType.value, aiCount.value, aiDifficulty.value);
 }
 
 function createRoom(): void {
@@ -240,6 +241,14 @@ onBeforeUnmount(() => {
           <span class="menu__label">Компьютеров:</span>
           <select v-model.number="aiCount" class="menu__select">
             <option v-for="n in aiMax" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </div>
+        <div class="menu__row">
+          <span class="menu__label">Сложность:</span>
+          <select v-model="aiDifficulty" class="menu__select">
+            <option value="easy">Лёгкая</option>
+            <option value="medium">Средняя</option>
+            <option value="hard">Сложная</option>
           </select>
         </div>
         <button class="menu__btn" :disabled="!connected" @click="startSolo">Начать игру</button>
