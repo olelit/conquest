@@ -1,6 +1,7 @@
 import type { Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { MapType } from './map.js';
+import type { Difficulty } from './config.js';
 import type { RoomManager } from './rooms.js';
 
 interface WsMessage {
@@ -14,6 +15,7 @@ interface WsMessage {
   maxPlayers?: number;
   aiCount?: number;
   roomId?: number;
+  difficulty?: string;
 }
 
 export function attachWs(server: Server, manager: RoomManager): () => void {
@@ -79,7 +81,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             broadcast();
             return;
           case 'start-solo': {
-            const result = manager.createSolo(connId, String(message.mapType ?? '') as MapType, Number(message.aiCount));
+            const result = manager.createSolo(connId, String(message.mapType ?? '') as MapType, Number(message.aiCount), (message.difficulty ?? 'medium') as Difficulty);
             if (result.ok) broadcast();
             else sendError(ws, result.error);
             return;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as rules from '../src/rules.js';
 import { Room } from '../src/rooms.js';
+import type { Difficulty } from '../src/config.js';
 
 function makeRoom(aiMode = false, aiCount = 1, maxPlayers = 4): Room {
   return new Room(1, 'Тест', 'normal', maxPlayers, aiMode, aiCount);
@@ -386,6 +387,28 @@ describe('Room: перезапуск', () => {
     expect(room.view().game!.players).toHaveLength(2);
     expect(room.paused).toBe(false);
     expect(room.view().game!.winnerId).toBeNull();
+  });
+});
+
+describe('Room: сложность', () => {
+  it('соло с easy: ИИ получает множитель 0.5, человек — без множителя', () => {
+    const m = new RoomManager();
+    expect(m.createSolo(1, 'normal', 1, 'easy').ok).toBe(true);
+    const g = m.roomForConn(1)!.gameState!;
+    const human = g.players.find((p) => !p.isAi)!;
+    const ai = g.players.find((p) => p.isAi)!;
+    expect(human.incomeMultiplier).toBeUndefined();
+    expect(ai.incomeMultiplier).toBe(0.5);
+  });
+  it('неизвестная сложность — ошибка', () => {
+    const m = new RoomManager();
+    expect(m.createSolo(1, 'normal', 1, 'impossible' as Difficulty).ok).toBe(false);
+  });
+  it('мультиплеер: ИИ на средней сложности', () => {
+    const room = makeRoom(false, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    expect(room.gameState!.players.find((p) => p.isAi)!.incomeMultiplier).toBe(0.75);
   });
 });
 

@@ -4,7 +4,7 @@ import type { GameState, HexState, PlayerState } from './rules.js';
 import { chooseAiAction, type AiAction } from './ai.js';
 import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
-import { config } from './config.js';
+import { config, type Difficulty } from './config.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -81,6 +81,7 @@ export class Room {
     readonly aiMode: boolean,
     private readonly aiCount: number,
     private readonly rng: () => number = Math.random,
+    readonly difficulty: Difficulty = 'medium',
   ) {}
 
   get gameState(): GameState | null {
@@ -144,12 +145,7 @@ export class Room {
         disconnected: false,
       });
     }
-    const players: PlayerState[] = this.slots.map((s) => ({
-      id: s.id,
-      name: s.name,
-      points: rules.BASE_POINTS,
-      isAi: s.isAi,
-    }));
+    const players = this.buildPlayers();
     const hexes = this.buildHexes();
     const preset = MAP_PRESETS[this.mapType];
     this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
@@ -158,6 +154,16 @@ export class Room {
     this.lastCapturerId = null;
     this.addLog('Новая игра началась');
     return { ok: true };
+  }
+
+  private buildPlayers(): PlayerState[] {
+    return this.slots.map((s) => ({
+      id: s.id,
+      name: s.name,
+      points: rules.BASE_POINTS,
+      isAi: s.isAi,
+      ...(s.isAi ? { incomeMultiplier: config.aiIncomeMultipliers[this.difficulty] } : {}),
+    }));
   }
 
   private buildHexes(): HexState[] {
@@ -178,12 +184,7 @@ export class Room {
     if (!this.aiMode) return { ok: false, error: 'Перезапуск доступен только в игре с компьютером' };
     if (this.status !== 'playing' || !this.state) return { ok: false, error: 'Игра ещё не началась' };
     this.slots = this.slots.filter((s) => !this.eliminationSpawned.has(s.id));
-    const players: PlayerState[] = this.slots.map((s) => ({
-      id: s.id,
-      name: s.name,
-      points: rules.BASE_POINTS,
-      isAi: s.isAi,
-    }));
+    const players = this.buildPlayers();
     const preset = MAP_PRESETS[this.mapType];
     this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.paused = false;
@@ -522,14 +523,17 @@ export class RoomManager {
     return { ok: true };
   }
 
-  createSolo(connId: number, mapType: MapType, aiCount: number): { ok: true } | { ok: false; error: string } {
+  createSolo(connId: number, mapType: MapType, aiCount: number, difficulty: Difficulty = 'medium'): { ok: true } | { ok: false; error: string } {
     if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
     const preset = MAP_PRESETS[mapType];
     if (!preset) return { ok: false, error: 'Неизвестный тип карты' };
     if (!Number.isInteger(aiCount) || aiCount < 1 || aiCount > preset.maxPlayers - 1) {
       return { ok: false, error: `Компьютеров должно быть от 1 до ${preset.maxPlayers - 1}` };
     }
-    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount);
+    if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+      return { ok: false, error: 'Неизвестная сложность' };
+    }
+    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount, undefined, difficulty);
     const slot = room.addHuman(this.connName(connId), connId);
     if (slot === null) return { ok: false, error: 'Комната заполнена' };
     this.rooms.set(room.id, room);
