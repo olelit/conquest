@@ -73,6 +73,7 @@ export class Room {
   private eliminationSpawned = new Set<number>();
   private aiLastActionAt = new Map<number, number>();
   private lastCapturerId: number | null = null;
+  private pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[] = [];
 
   readonly stats: GameStatsRecorder;
   private statsWritten = false;
@@ -158,6 +159,8 @@ export class Room {
     const hexes = this.buildHexes();
     const preset = MAP_PRESETS[this.mapType];
     this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
+    this.state.diplomacy = new Map();
+    this.pendingProposals = [];
     this.status = 'playing';
     this.paused = false;
     this.lastCapturerId = null;
@@ -210,6 +213,8 @@ export class Room {
     const players = this.buildPlayers();
     const preset = MAP_PRESETS[this.mapType];
     this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
+    this.state.diplomacy = new Map();
+    this.pendingProposals = [];
     this.paused = false;
     this.finishedAt = null;
     this.aiLastActionAt.clear();
@@ -305,6 +310,22 @@ export class Room {
     for (const [key, started] of this.attackStartedAt) {
       if (now - started >= 30000) this.attackStartedAt.delete(key);
     }
+    for (const aiPlayer of state.players) {
+      if (!aiPlayer.isAi || aiPlayer.eliminated) continue;
+      const incoming = this.pendingProposals.filter((p) => p.to === aiPlayer.id);
+      for (const proposal of incoming) {
+        this.pendingProposals.splice(this.pendingProposals.indexOf(proposal), 1);
+        const proposer = state.players.find((p) => p.id === proposal.from);
+        if (!proposer || proposer.eliminated) continue;
+        if (this.aiAcceptsProposal(state, aiPlayer.id, proposal.from)) {
+          if (proposal.kind === 'peace') rules.makePeace(state, aiPlayer.id, proposal.from);
+          else rules.makeAlliance(state, aiPlayer.id, proposal.from);
+          this.addLog(`${this.playerName(aiPlayer.id)} и ${this.playerName(proposal.from)} заключили ${proposal.kind === 'peace' ? 'мир' : 'союз'}`);
+        } else {
+          this.addLog(`${this.playerName(aiPlayer.id)} отклонил предложение ${this.playerName(proposal.from)}`);
+        }
+      }
+    }
     for (const player of state.players) {
       if (!player.isAi || player.eliminated) continue;
       const last = this.aiLastActionAt.get(player.id) ?? 0;
@@ -316,6 +337,15 @@ export class Room {
       }
     }
     rules.computeWinner(state);
+  }
+
+  private aiAcceptsProposal(state: GameState, aiId: number, proposerId: number): boolean {
+    const proposer = state.players.find((p) => p.id === proposerId);
+    if (!proposer || proposer.eliminated) return false;
+    const proposerHexes = rules.hexCount(state, proposerId);
+    const aiHexes = rules.hexCount(state, aiId);
+    const atWar = state.players.some((p) => p.id !== aiId && rules.relation(state, aiId, p.id) === 'war');
+    return proposerHexes >= aiHexes * 0.8 || atWar;
   }
 
   private handlePlayerLoss(playerId: number): void {
@@ -360,7 +390,7 @@ export class Room {
     }
   }
 
-  handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number }): ActionResult {
+  handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean }): ActionResult {
     const playerId = this.slotForConn(connId);
     if (type === 'pause') {
       if (!this.aiMode) return { type: 'error', message: 'В игре с людьми пауза недоступна' };
@@ -397,6 +427,45 @@ export class Room {
         this.addLog(`${this.playerName(playerId)} защищает (${msg.q}, ${msg.r}): +${Number(msg.points)}`);
         this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'defend', q: msg.q, r: msg.r });
         this.recordReaction(playerId, msg.q, msg.r, Date.now());
+        return { type: 'state' };
+      }
+      case 'declare-war': {
+        const target = this.targetPlayerId(playerId, msg);
+        if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        rules.declareWar(this.state, playerId, target);
+        this.addLog(`${this.playerName(playerId)} объявил войну ${this.playerName(target)}`);
+        return { type: 'state' };
+      }
+      case 'propose': {
+        const target = this.targetPlayerId(playerId, msg);
+        if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        const kind = msg.kind;
+        if (kind !== 'peace' && kind !== 'alliance') return { type: 'error', message: 'Неизвестный тип предложения' };
+        const rel = rules.relation(this.state!, playerId, target);
+        if (kind === 'peace' && rel === 'peace') return { type: 'error', message: 'Уже в мире' };
+        if (kind === 'alliance' && (rel === 'alliance' || rel === 'war')) {
+          return { type: 'error', message: 'Союз невозможен при текущих отношениях' };
+        }
+        if (this.pendingProposals.some((p) => p.from === playerId && p.to === target && p.kind === kind)) {
+          return { type: 'error', message: 'Предложение уже отправлено' };
+        }
+        this.pendingProposals.push({ from: playerId, to: target, kind });
+        this.addLog(`${this.playerName(playerId)} предлагает ${kind === 'peace' ? 'мир' : 'союз'} ${this.playerName(target)}`);
+        return { type: 'state' };
+      }
+      case 'respond-proposal': {
+        const proposer = this.targetPlayerId(playerId, msg);
+        if (proposer === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        const idx = this.pendingProposals.findIndex((p) => p.from === proposer && p.to === playerId);
+        if (idx === -1) return { type: 'error', message: 'Нет предложения от этого игрока' };
+        const [proposal] = this.pendingProposals.splice(idx, 1);
+        if (msg.accept) {
+          if (proposal.kind === 'peace') rules.makePeace(this.state!, playerId, proposer);
+          else rules.makeAlliance(this.state!, playerId, proposer);
+          this.addLog(`${this.playerName(playerId)} и ${this.playerName(proposer)} заключили ${proposal.kind === 'peace' ? 'мир' : 'союз'}`);
+        } else {
+          this.addLog(`${this.playerName(playerId)} отклонил предложение ${this.playerName(proposer)}`);
+        }
         return { type: 'state' };
       }
       default:
@@ -527,6 +596,12 @@ export class Room {
 
   private playerName(playerId: number): string {
     return this.slots.find((s) => s.id === playerId)?.name ?? `Игрок ${playerId}`;
+  }
+
+  private targetPlayerId(playerId: number, msg: { q?: number; r?: number }): number | null {
+    const hex = rules.findHex(this.state!, msg.q ?? 0, msg.r ?? 0);
+    if (!hex || hex.ownerId === null || hex.ownerId === playerId) return null;
+    return hex.ownerId;
   }
 
   private addLog(message: string): void {
@@ -666,7 +741,7 @@ export class RoomManager {
     return room.restart();
   }
 
-  handleAction(connId: number, msg: { type: string; q?: number; r?: number; points?: number; army?: number }): ActionResult {
+  handleAction(connId: number, msg: { type: string; q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean }): ActionResult {
     const room = this.roomForConn(connId);
     if (!room) return { type: 'error', message: 'Вы не в комнате' };
     return room.handleAction(connId, msg.type, msg);

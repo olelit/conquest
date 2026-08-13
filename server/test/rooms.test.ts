@@ -501,3 +501,76 @@ describe('Room: статистика', () => {
     expect(room.gameState!.players.find((p) => p.id === 1)!.incomeMultiplier).toBe(0.5);
   });
 });
+
+describe('Room: дипломатия', () => {
+  it('declare-war через handleAction + вступление союзников', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 2, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    // раздаём стартовые клетки: человек 1, ИИ 2, ИИ 3
+    for (const [playerId, i] of [[1, 0], [2, 1], [3, 2]] as [number, number][]) {
+      g.hexes[i].ownerId = playerId;
+      g.players.find((p) => p.id === playerId)!.capital = { q: g.hexes[i].q, r: g.hexes[i].r };
+    }
+    // ИИ 2 и ИИ 3 в союзе, человек объявляет войну ИИ 2
+    rules.makeAlliance(g, 2, 3);
+    const hex = g.hexes.find((h) => h.ownerId === 2)!;
+    const result = room.handleAction(1, 'declare-war', { q: hex.q, r: hex.r });
+    expect(result.type).toBe('state');
+    expect(rules.relation(g, 1, 2)).toBe('war');
+    expect(rules.relation(g, 1, 3)).toBe('war');
+    expect(room.view(1).log.some((l) => l.includes('объявил войну'))).toBe(true);
+  });
+  it('предложение мира: ИИ принимает при равенстве сил', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    // по одной клетке у каждого -> равенство
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[1].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    const hex = g.hexes.find((h) => h.ownerId === ai.id)!;
+    rules.declareWar(g, 1, ai.id);
+    const result = room.handleAction(1, 'propose', { q: hex.q, r: hex.r, kind: 'peace' });
+    expect(result.type).toBe('state');
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('peace');
+  });
+  it('предложение союза: ИИ отклоняет при слабом игроке', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    for (let i = 1; i <= 10; i++) g.hexes[i].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    const hex = g.hexes.find((h) => h.ownerId === ai.id)!;
+    const result = room.handleAction(1, 'propose', { q: hex.q, r: hex.r, kind: 'alliance' });
+    expect(result.type).toBe('state');
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).not.toBe('alliance');
+  });
+  it('respond-proposal: человек принимает предложение', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[1].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    const aiHex = g.hexes.find((h) => h.ownerId === ai.id)!;
+    // ИИ предлагает союз человеку (через handleAction от имени ИИ нельзя — создаём напрямую)
+    room['pendingProposals'] = [{ from: ai.id, to: 1, kind: 'alliance' }];
+    const result = room.handleAction(1, 'respond-proposal', { q: aiHex.q, r: aiHex.r, accept: true });
+    expect(result.type).toBe('state');
+    expect(rules.relation(g, 1, ai.id)).toBe('alliance');
+  });
+});

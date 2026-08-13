@@ -10,6 +10,8 @@ interface WsMessage {
   r?: number;
   points?: number;
   army?: number;
+  kind?: string;
+  accept?: boolean;
   token?: string;
   mapType?: string;
   maxPlayers?: number;
@@ -108,6 +110,14 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             const result = manager.restart(connId);
             if (result.ok) broadcast();
             else sendError(ws, result.error);
+            return;
+          }
+          case 'declare-war':
+          case 'propose':
+          case 'respond-proposal': {
+            const result = manager.handleAction(connId, message as { type: string; q?: number; r?: number; kind?: string; accept?: boolean });
+            if (result.type === 'state') broadcast();
+            else ws.send(JSON.stringify(result));
             return;
           }
         }
