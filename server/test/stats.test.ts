@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -59,5 +59,31 @@ describe('GameStatsRecorder', () => {
     rec.record({ type: 'action', t: 1, playerId: 1, action: 'capture', q: 0, r: 0 });
     rec.clear();
     expect(rec.events).toHaveLength(0);
+  });
+  it('writeSummary с пустым логом не создаёт файл', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'stats-'));
+    dirs.push(dir);
+    const rec = new GameStatsRecorder(5);
+    expect(rec.writeSummary(dir)).toBe('');
+    expect(readdirSync(dir)).toHaveLength(0);
+  });
+  it('summary включает ИИ из последнего снапшота', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'stats-'));
+    dirs.push(dir);
+    const rec = new GameStatsRecorder(9);
+    rec.record({ type: 'start', t: 1000, mapType: 'normal', players: [{ id: 1, name: 'A', isAi: false, incomeMultiplier: 1 }] });
+    rec.record({ type: 'snapshot', t: 3000, players: [
+      { id: 1, hexCount: 3, points: 100 },
+      { id: 5, hexCount: 2, points: 50 },
+    ] });
+    const data = JSON.parse(readFileSync(rec.writeSummary(dir), 'utf8'));
+    expect(data.summary.players.map((p: { id: number }) => p.id).sort()).toEqual([1, 5]);
+    expect(data.summary.players.find((p: { id: number }) => p.id === 5)!.isAi).toBe(true);
+  });
+  it('events возвращает копию', () => {
+    const rec = new GameStatsRecorder(1);
+    rec.record({ type: 'action', t: 1, playerId: 1, action: 'capture', q: 0, r: 0 });
+    rec.events.length = 0;
+    expect(rec.events).toHaveLength(1);
   });
 });

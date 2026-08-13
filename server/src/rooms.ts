@@ -296,7 +296,15 @@ export class Room {
     ) {
       state.winnerId = this.lastCapturerId;
     }
+    for (const hex of state.hexes) {
+      if (hex.attackerId === null && hex.defenderId === null) {
+        this.attackStartedAt.delete(`${hex.q},${hex.r}`);
+      }
+    }
     const now = Date.now();
+    for (const [key, started] of this.attackStartedAt) {
+      if (now - started >= 30000) this.attackStartedAt.delete(key);
+    }
     for (const player of state.players) {
       if (!player.isAi || player.eliminated) continue;
       const last = this.aiLastActionAt.get(player.id) ?? 0;
@@ -413,7 +421,10 @@ export class Room {
     slot.disconnected = true;
     slot.isAi = true;
     const player = this.state?.players.find((p) => p.id === id);
-    if (player) player.isAi = true;
+    if (player) {
+      player.isAi = true;
+      player.incomeMultiplier = config.aiIncomeMultipliers[this.difficulty];
+    }
     this.addLog(`${slot.name} покинул игру — его место занял компьютер`);
   }
 
@@ -480,7 +491,8 @@ export class Room {
     if (this.statsWritten) return;
     this.statsWritten = true;
     try {
-      this.stats.writeSummary(config.statsDir);
+      const path = this.stats.writeSummary(config.statsDir);
+      if (path === '') return;
     } catch (err) {
       console.error('stats write failed:', err);
     }

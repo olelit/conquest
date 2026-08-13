@@ -482,4 +482,11 @@ describe('Room: статистика', () => {
     const snapshots = room.stats.events.filter((e) => e.type === 'snapshot');
     expect(snapshots).toHaveLength(1);
   });
+  it('человек вышел — его ИИ-замена получает множитель сложности', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5, 'easy');
+    room.addHuman('A', 1);
+    room.start(1);
+    room.humanDisconnected(1);
+    expect(room.gameState!.players.find((p) => p.id === 1)!.incomeMultiplier).toBe(0.5);
+  });
 });

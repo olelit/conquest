@@ -36,7 +36,7 @@ export class GameStatsRecorder {
   constructor(private readonly roomId: number) {}
 
   get events(): StatsEvent[] {
-    return this.recorded;
+    return [...this.recorded];
   }
 
   record(event: StatsEvent): void {
@@ -48,6 +48,7 @@ export class GameStatsRecorder {
   }
 
   writeSummary(statsDir: string): string {
+    if (this.recorded.length === 0) return '';
     mkdirSync(statsDir, { recursive: true });
     const starts = this.recorded.filter((e) => e.type === 'start');
     const ends = this.recorded.filter((e) => e.type === 'end');
@@ -67,7 +68,18 @@ export class GameStatsRecorder {
     const lastStart = starts[starts.length - 1];
     const lastEnd = ends[ends.length - 1];
     const durationMs = lastStart && lastEnd ? lastEnd.t - lastStart.t : 0;
-    const players = (lastStart && lastStart.type === 'start' ? lastStart.players : []).map((p) => {
+    const startPlayers = lastStart && lastStart.type === 'start' ? lastStart.players : [];
+    const known = new Map(startPlayers.map((p) => [p.id, p]));
+    const snapshotsForMerge = this.recorded.filter((e) => e.type === 'snapshot');
+    const lastSnapshotForMerge = snapshotsForMerge[snapshotsForMerge.length - 1];
+    if (lastSnapshotForMerge && lastSnapshotForMerge.type === 'snapshot') {
+      for (const sp of lastSnapshotForMerge.players) {
+        if (!known.has(sp.id)) {
+          known.set(sp.id, { id: sp.id, name: `Игрок ${sp.id}`, isAi: true, incomeMultiplier: 1 });
+        }
+      }
+    }
+    const players = [...known.values()].map((p) => {
       const actions = this.recorded.filter((e): e is Extract<StatsEvent, { type: 'action' }> => e.type === 'action' && e.playerId === p.id);
       const reactions = this.recorded.filter((e): e is Extract<StatsEvent, { type: 'reaction' }> => e.type === 'reaction' && e.playerId === p.id);
       const reactionsSummary =
