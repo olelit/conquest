@@ -573,4 +573,53 @@ describe('Room: дипломатия', () => {
     expect(result.type).toBe('state');
     expect(rules.relation(g, 1, ai.id)).toBe('alliance');
   });
+  it('агрессия ИИ: объявляет войну при перевесе сил', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    // человек 1 клетка, ИИ 10
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    for (let i = 1; i <= 10; i++) g.hexes[i].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('war');
+  });
+  it('агрессия ИИ: не объявляет войну, если цель сильнее', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    for (let i = 0; i < 10; i++) g.hexes[i].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[10].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[10].q, r: g.hexes[10].r };
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('peace');
+  });
+  it('разведка: кэш обновляется не чаще 30 секунд', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    for (let i = 0; i < 10; i++) g.hexes[i].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[10].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[10].q, r: g.hexes[10].r };
+    room.tick(); // первый тик — кэш создан
+    const before = room['scoutCache'];
+    expect(before).not.toBeNull();
+    // у человека резко выросла территория, но кэш не обновился
+    for (let i = 11; i < 40; i++) g.hexes[i].ownerId = 1;
+    room.tick();
+    expect(room['scoutCache']!.hexCount).toBe(before!.hexCount);
+    // принудительно состарим кэш
+    room['scoutCache']!.updatedAt = Date.now() - 31000;
+    room.tick();
+    expect(room['scoutCache']!.hexCount).toBeGreaterThan(before!.hexCount);
+  });
 });

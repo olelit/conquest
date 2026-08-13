@@ -74,6 +74,7 @@ export class Room {
   private aiLastActionAt = new Map<number, number>();
   private lastCapturerId: number | null = null;
   private pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[] = [];
+  private scoutCache: { hexCount: number; points: number; updatedAt: number } | null = null;
 
   readonly stats: GameStatsRecorder;
   private statsWritten = false;
@@ -215,6 +216,7 @@ export class Room {
     this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
+    this.scoutCache = null;
     this.paused = false;
     this.finishedAt = null;
     this.aiLastActionAt.clear();
@@ -310,6 +312,7 @@ export class Room {
     for (const [key, started] of this.attackStartedAt) {
       if (now - started >= 30000) this.attackStartedAt.delete(key);
     }
+    this.updateScoutCache(state);
     for (const aiPlayer of state.players) {
       if (!aiPlayer.isAi || aiPlayer.eliminated) continue;
       const incoming = this.pendingProposals.filter((p) => p.to === aiPlayer.id);
@@ -328,6 +331,7 @@ export class Room {
     }
     for (const player of state.players) {
       if (!player.isAi || player.eliminated) continue;
+      this.maybeDeclareWar(state, player.id);
       const last = this.aiLastActionAt.get(player.id) ?? 0;
       if (now - last < config.aiActionIntervalMs) continue;
       const action = chooseAiAction(state, player.id);
@@ -346,6 +350,52 @@ export class Room {
     const aiHexes = rules.hexCount(state, aiId);
     const atWar = state.players.some((p) => p.id !== aiId && rules.relation(state, aiId, p.id) === 'war');
     return proposerHexes >= aiHexes * 0.8 || atWar;
+  }
+
+  private updateScoutCache(state: GameState): void {
+    const now = Date.now();
+    if (this.scoutCache !== null && now - this.scoutCache.updatedAt < 30000) return;
+    const human = state.players.find((p) => !p.isAi && !p.eliminated);
+    if (!human) {
+      this.scoutCache = null;
+      return;
+    }
+    this.scoutCache = { hexCount: rules.hexCount(state, human.id), points: human.points, updatedAt: now };
+  }
+
+  private hasBorderWith(state: GameState, a: number, b: number): boolean {
+    const offsets: [number, number][] = [
+      [1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1],
+    ];
+    return state.hexes.some((hex) => {
+      if (hex.ownerId !== a) return false;
+      return offsets.some(([dq, dr]) => {
+        const n = rules.findHex(state, hex.q + dq, hex.r + dr);
+        return n !== undefined && n.ownerId === b;
+      });
+    });
+  }
+
+  private maybeDeclareWar(state: GameState, aiId: number): void {
+    const sideStrength = (id: number) => {
+      const side = [id, ...rules.alliesOf(state, id)];
+      return {
+        hexes: side.reduce((sum, pid) => sum + rules.hexCount(state, pid), 0),
+        points: side.reduce((sum, pid) => sum + (state.players.find((p) => p.id === pid)?.points ?? 0), 0),
+      };
+    };
+    const aiSide = sideStrength(aiId);
+    for (const target of state.players) {
+      if (target.id === aiId || target.eliminated) continue;
+      const rel = rules.relation(state, aiId, target.id);
+      if (rel === 'war' || rel === 'alliance') continue;
+      if (!this.hasBorderWith(state, aiId, target.id)) continue;
+      const targetSide = target.isAi ? sideStrength(target.id) : { hexes: this.scoutCache?.hexCount ?? 0, points: this.scoutCache?.points ?? 0 };
+      if (aiSide.hexes > targetSide.hexes || aiSide.points > targetSide.points) {
+        rules.declareWar(state, aiId, target.id);
+        this.addLog(`${this.playerName(aiId)} объявил войну ${this.playerName(target.id)}`);
+      }
+    }
   }
 
   private handlePlayerLoss(playerId: number): void {
