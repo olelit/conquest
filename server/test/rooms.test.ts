@@ -444,3 +444,42 @@ describe('Room: взаимное выбытие', () => {
     expect(g.winnerId).toBe(1);
   });
 });
+
+describe('Room: статистика', () => {
+  it('start, действия человека и ИИ записываются', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    room.handleAction(1, 'capture', { q: 0, r: 0 });
+    room.tick();
+    const events = room.stats.events;
+    expect(events.filter((e) => e.type === 'start')).toHaveLength(1);
+    expect(events.filter((e) => e.type === 'action' && e.playerId === 1)).toHaveLength(1);
+    expect(events.some((e) => e.type === 'action' && e.playerId === 2)).toBe(true);
+  });
+  it('реакция на атаку фиксируется для ИИ', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    g.hexes[0].terrain = 'grass';
+    g.hexes[0].ownerId = 2;
+    g.players[1].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[1].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    const result = room.handleAction(1, 'attack', { q: g.hexes[0].q, r: g.hexes[0].r, points: 200 });
+    expect(result.type).toBe('state');
+    room.tick();
+    const reactions = room.stats.events.filter((e) => e.type === 'reaction');
+    expect(reactions).toHaveLength(1);
+    expect((reactions[0] as { playerId: number }).playerId).toBe(2);
+  });
+  it('снапшот пишется каждые 10 тиков', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    for (let i = 0; i < 10; i++) room.tick();
+    const snapshots = room.stats.events.filter((e) => e.type === 'snapshot');
+    expect(snapshots).toHaveLength(1);
+  });
+});

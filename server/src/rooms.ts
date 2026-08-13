@@ -5,6 +5,7 @@ import { chooseAiAction, type AiAction } from './ai.js';
 import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
 import { config, type Difficulty } from './config.js';
+import { GameStatsRecorder } from './stats.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -73,6 +74,12 @@ export class Room {
   private aiLastActionAt = new Map<number, number>();
   private lastCapturerId: number | null = null;
 
+  readonly stats: GameStatsRecorder;
+  private statsWritten = false;
+  private tickCounter = 0;
+  private startedAt = 0;
+  private attackStartedAt = new Map<string, number>();
+
   constructor(
     readonly id: number,
     readonly name: string,
@@ -82,7 +89,9 @@ export class Room {
     private readonly aiCount: number,
     private readonly rng: () => number = Math.random,
     readonly difficulty: Difficulty = 'medium',
-  ) {}
+  ) {
+    this.stats = new GameStatsRecorder(this.id);
+  }
 
   get gameState(): GameState | null {
     return this.state;
@@ -153,6 +162,20 @@ export class Room {
     this.paused = false;
     this.lastCapturerId = null;
     this.addLog('Новая игра началась');
+    this.startedAt = Date.now();
+    this.statsWritten = false;
+    this.tickCounter = 0;
+    this.stats.record({
+      type: 'start',
+      t: this.startedAt,
+      mapType: this.mapType,
+      players: players.map((p) => ({
+        id: p.id,
+        name: p.name ?? `Игрок ${p.id}`,
+        isAi: p.isAi ?? false,
+        incomeMultiplier: p.incomeMultiplier ?? 1,
+      })),
+    });
     return { ok: true };
   }
 
@@ -193,6 +216,21 @@ export class Room {
     this.log = [];
     this.eliminationSpawned.clear();
     this.lastCapturerId = null;
+    this.stats.clear();
+    this.startedAt = Date.now();
+    this.statsWritten = false;
+    this.tickCounter = 0;
+    this.stats.record({
+      type: 'start',
+      t: this.startedAt,
+      mapType: this.mapType,
+      players: players.map((p) => ({
+        id: p.id,
+        name: p.name ?? `Игрок ${p.id}`,
+        isAi: p.isAi ?? false,
+        incomeMultiplier: p.incomeMultiplier ?? 1,
+      })),
+    });
     this.addLog('Игра перезапущена');
     return { ok: true };
   }
@@ -202,12 +240,26 @@ export class Room {
     const state = this.state;
     if (!state) return;
     if (state.winnerId !== null) {
-      if (this.finishedAt === null) this.finishedAt = Date.now();
+      if (this.finishedAt === null) {
+        this.finishedAt = Date.now();
+        this.stats.record({ type: 'end', t: this.finishedAt, winnerId: state.winnerId, durationMs: this.finishedAt - this.startedAt });
+        this.writeStatsIfNeeded();
+      }
       return;
     }
     rules.applyIncome(state);
+    this.tickCounter++;
+    if (this.tickCounter % 10 === 0) {
+      this.stats.record({
+        type: 'snapshot',
+        t: Date.now(),
+        players: state.players.map((p) => ({ id: p.id, hexCount: rules.hexCount(state, p.id), points: p.points })),
+      });
+    }
     const results = rules.tickBattles(state);
     for (const result of results) {
+      this.stats.record({ type: 'battle', t: Date.now(), q: result.q, r: result.r, winnerId: result.winnerId });
+      this.attackStartedAt.delete(`${result.q},${result.r}`);
       if (result.winnerId === null) {
         this.addLog(`Битва за (${result.q}, ${result.r}) окончена — ничья`);
       } else {
@@ -277,6 +329,7 @@ export class Room {
             name,
             points: rules.BASE_POINTS,
             isAi: true,
+            incomeMultiplier: config.aiIncomeMultipliers[this.difficulty],
             capital: { q: ai.hexes[0].q, r: ai.hexes[0].r },
           });
           this.slots.push({ id: ai.id, name, isAi: true, connId: null, disconnected: false });
@@ -320,6 +373,7 @@ export class Room {
         const cost = rules.hexCount(this.state, playerId) === 0 ? 0 : rules.terrainCost(hex.terrain);
         rules.applyCapture(this.state, playerId, msg.q, msg.r);
         this.addLog(`${this.playerName(playerId)} захватил (${msg.q}, ${msg.r}) за ${cost} очков`);
+        this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: msg.q, r: msg.r });
         return { type: 'state' };
       }
       case 'attack': {
@@ -327,6 +381,8 @@ export class Room {
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.applyAttack(this.state, playerId, msg.q, msg.r, Number(msg.points));
         this.addLog(`${this.playerName(playerId)} вложил ${Number(msg.points)} очков в атаку на (${msg.q}, ${msg.r})`);
+        this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'attack', q: msg.q, r: msg.r });
+        this.noteAttack(msg.q, msg.r, Date.now());
         return { type: 'state' };
       }
       case 'defend': {
@@ -334,6 +390,8 @@ export class Room {
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.applyDefend(this.state, playerId, msg.q, msg.r, Number(msg.points));
         this.addLog(`${this.playerName(playerId)} защищает (${msg.q}, ${msg.r}): +${Number(msg.points)}`);
+        this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'defend', q: msg.q, r: msg.r });
+        this.recordReaction(playerId, msg.q, msg.r, Date.now());
         return { type: 'state' };
       }
       default:
@@ -403,6 +461,31 @@ export class Room {
     return Math.max(0, ...this.slots.map((s) => s.id)) + 1;
   }
 
+  private noteAttack(q: number, r: number, now: number): void {
+    const hex = rules.findHex(this.state!, q, r);
+    if (hex && hex.ownerId !== null) this.attackStartedAt.set(`${q},${r}`, now);
+  }
+
+  private recordReaction(playerId: number, q: number, r: number, now: number): void {
+    const started = this.attackStartedAt.get(`${q},${r}`);
+    if (started === undefined) return;
+    this.attackStartedAt.delete(`${q},${r}`);
+    const ms = now - started;
+    if (ms >= 0 && ms < 30000) {
+      this.stats.record({ type: 'reaction', t: now, playerId, ms });
+    }
+  }
+
+  writeStatsIfNeeded(): void {
+    if (this.statsWritten) return;
+    this.statsWritten = true;
+    try {
+      this.stats.writeSummary(config.statsDir);
+    } catch (err) {
+      console.error('stats write failed:', err);
+    }
+  }
+
   private applyAiAction(playerId: number, action: AiAction): void {
     const state = this.state!;
     const name = this.playerName(playerId);
@@ -413,18 +496,25 @@ export class Room {
           const cost = rules.hexCount(state, playerId) === 0 ? 0 : rules.terrainCost(hex.terrain);
           rules.applyCapture(state, playerId, action.q, action.r);
           this.addLog(`${name} захватил (${action.q}, ${action.r}) за ${cost} очков`);
+          this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: action.q, r: action.r });
+          this.recordReaction(playerId, action.q, action.r, Date.now());
         }
         break;
       case 'attack':
         if (rules.validateAttack(state, playerId, action.q, action.r, action.points).ok) {
           rules.applyAttack(state, playerId, action.q, action.r, action.points);
           this.addLog(`${name} вложил ${action.points} очков в атаку на (${action.q}, ${action.r})`);
+          this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'attack', q: action.q, r: action.r });
+          this.noteAttack(action.q, action.r, Date.now());
+          this.recordReaction(playerId, action.q, action.r, Date.now());
         }
         break;
       case 'defend':
         if (rules.validateDefend(state, playerId, action.q, action.r, action.points).ok) {
           rules.applyDefend(state, playerId, action.q, action.r, action.points);
           this.addLog(`${name} защищает (${action.q}, ${action.r}): +${action.points}`);
+          this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'defend', q: action.q, r: action.r });
+          this.recordReaction(playerId, action.q, action.r, Date.now());
         }
         break;
     }
@@ -622,6 +712,7 @@ export class RoomManager {
   }
 
   private removeRoom(room: Room): void {
+    room.writeStatsIfNeeded();
     this.rooms.delete(room.id);
     for (const [conn, roomId] of this.connToRoom) {
       if (roomId === room.id) this.connToRoom.delete(conn);
