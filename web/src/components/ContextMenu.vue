@@ -28,6 +28,7 @@ const isMine = computed(() => props.hex.ownerId !== null && props.hex.ownerId ==
 const isEnemy = computed(() => props.hex.ownerId !== null && props.hex.ownerId !== props.humanId);
 
 const canBuildFortress = computed(() => {
+  if (props.hex.attackerId !== null) return false;
   const limit = Math.floor(props.hexCount / 15);
   const nextLimit = 1000 + props.hexCount * 50 - 100 * (props.fortressCount + 1);
   return limit > props.fortressCount && props.points <= nextLimit;
