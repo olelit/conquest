@@ -75,6 +75,18 @@ export class GameClient {
     this.send({ type: 'auth', token });
   }
 
+  sendDeclareWar(q: number, r: number): void {
+    this.send({ type: 'declare-war', q, r });
+  }
+
+  sendPropose(q: number, r: number, kind: 'peace' | 'alliance'): void {
+    this.send({ type: 'propose', q, r, kind });
+  }
+
+  sendRespondProposal(q: number, r: number, accept: boolean): void {
+    this.send({ type: 'respond-proposal', q, r, accept });
+  }
+
   private send(msg: ClientMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));

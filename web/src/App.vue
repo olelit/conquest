@@ -31,7 +31,13 @@ const playerId = ref<number | null>(null);
 const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
 const burgerOpen = ref(false);
 const army = ref(20);
-const contextMenu = ref<{ hex: Hex; x: number; y: number } | null>(null);
+const contextMenu = ref<{
+  hex: Hex;
+  x: number;
+  y: number;
+  relation: 'peace' | 'war' | 'alliance';
+  pendingFromOwner: { kind: 'peace' | 'alliance' } | null;
+} | null>(null);
 let suppressNextHexClick = false;
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
@@ -105,7 +111,7 @@ function isCapturable(hex: Hex): boolean {
   if (!human) return false;
   if (human.eliminated) return false;
   if (human.hexCount === 0) return true;
-  if (human.points - armyPoints() < TERRAIN_COSTS[hex.terrain]) return false;
+  if (human.points !== null && human.points - armyPoints() < TERRAIN_COSTS[hex.terrain]) return false;
   return g.hexes.some((h) => h.ownerId === human.id && isAdjacent(h, hex));
 }
 
@@ -146,7 +152,31 @@ function onContextMenu(payload: { hex: Hex; x: number; y: number }): void {
     closeContextMenu();
     return;
   }
-  contextMenu.value = payload;
+  const g = game.value;
+  if (!g) return;
+  const owner = g.players.find((p) => p.id === payload.hex.ownerId);
+  if (!owner) return;
+  const relation = owner.id === playerId.value ? 'peace' : owner.relation === 'ally' ? 'alliance' : 'war';
+  const pendingFromOwner = g.pendingProposals.find((p) => p.from === owner.id) ?? null;
+  contextMenu.value = { ...payload, relation, pendingFromOwner };
+}
+
+function onMenuDeclareWar(): void {
+  if (!contextMenu.value) return;
+  client.sendDeclareWar(contextMenu.value.hex.q, contextMenu.value.hex.r);
+  closeContextMenu();
+}
+
+function onMenuPropose(kind: 'peace' | 'alliance'): void {
+  if (!contextMenu.value) return;
+  client.sendPropose(contextMenu.value.hex.q, contextMenu.value.hex.r, kind);
+  closeContextMenu();
+}
+
+function onMenuRespond(accept: boolean): void {
+  if (!contextMenu.value) return;
+  client.sendRespondProposal(contextMenu.value.hex.q, contextMenu.value.hex.r, accept);
+  closeContextMenu();
 }
 
 function closeContextMenu(): void {
@@ -395,7 +425,12 @@ onBeforeUnmount(() => {
           :y="contextMenu.y"
           :players="game.players"
           :human-id="playerId"
+          :relation="contextMenu.relation"
+          :pending-from-owner="contextMenu.pendingFromOwner"
           @close="closeContextMenu"
+          @declare-war="onMenuDeclareWar"
+          @propose="onMenuPropose"
+          @respond="onMenuRespond"
         />
         <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
         <div v-if="room.log?.length" class="log-panel">

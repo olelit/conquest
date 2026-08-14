@@ -2,22 +2,55 @@
 import { computed } from 'vue';
 import type { Hex, Player } from '../types';
 
-const props = defineProps<{ hex: Hex; x: number; y: number; players: Player[]; humanId: number | null }>();
+const props = defineProps<{
+  hex: Hex;
+  x: number;
+  y: number;
+  players: Player[];
+  humanId: number | null;
+  relation: 'peace' | 'war' | 'alliance';
+  pendingFromOwner: { kind: 'peace' | 'alliance' } | null;
+}>();
 
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{
+  close: [];
+  declareWar: [];
+  propose: [kind: 'peace' | 'alliance'];
+  respond: [accept: boolean];
+}>();
 
 const isMine = computed(() => props.hex.ownerId !== null && props.hex.ownerId === props.humanId);
 const isEnemy = computed(() => props.hex.ownerId !== null && props.hex.ownerId !== props.humanId);
 
 const items = computed(() => {
   if (isMine.value) {
-    return [{ label: 'Построить крепость', disabled: true, hint: 'будет доступно позже' }];
+    return [{ label: 'Построить крепость', disabled: true, hint: 'будет доступно позже', action: '' }];
   }
   if (isEnemy.value) {
+    if (props.pendingFromOwner) {
+      return [
+        { label: `Принять ${props.pendingFromOwner.kind === 'peace' ? 'мир' : 'союз'}`, disabled: false, hint: '', action: 'respond-true' },
+        { label: 'Отклонить', disabled: false, hint: '', action: 'respond-false' },
+      ];
+    }
+    if (props.relation === 'peace') {
+      return [
+        { label: 'Война', disabled: false, hint: '', action: 'war' },
+        { label: 'Мир', disabled: true, hint: 'уже мир', action: '' },
+        { label: 'Союз', disabled: false, hint: '', action: 'alliance' },
+      ];
+    }
+    if (props.relation === 'war') {
+      return [
+        { label: 'Война', disabled: true, hint: 'уже война', action: '' },
+        { label: 'Мир', disabled: false, hint: '', action: 'peace' },
+        { label: 'Союз', disabled: true, hint: 'во время войны нельзя', action: '' },
+      ];
+    }
     return [
-      { label: 'Война', disabled: true, hint: 'будет доступно позже' },
-      { label: 'Мир', disabled: true, hint: 'будет доступно позже' },
-      { label: 'Союз', disabled: true, hint: 'будет доступно позже' },
+      { label: 'Война', disabled: false, hint: '', action: 'war' },
+      { label: 'Мир', disabled: true, hint: 'вы союзники', action: '' },
+      { label: 'Союз', disabled: true, hint: 'уже союз', action: '' },
     ];
   }
   return [];
@@ -30,20 +63,24 @@ const style = computed(() => {
   return { left: `${Math.max(margin, left)}px`, top: `${Math.max(margin, top)}px` };
 });
 
-function pick(): void {
+function pick(action: string): void {
+  if (action === 'war') emit('declareWar');
+  else if (action === 'peace' || action === 'alliance') emit('propose', action);
+  else if (action === 'respond-true') emit('respond', true);
+  else if (action === 'respond-false') emit('respond', false);
   emit('close');
 }
 </script>
 
 <template>
-  <div class="context-menu" :style="style" @mousedown.stop @contextmenu.prevent="pick">
+  <div class="context-menu" :style="style" @mousedown.stop @contextmenu.prevent="emit('close')">
     <button
       v-for="item in items"
       :key="item.label"
       class="context-menu__item"
       :disabled="item.disabled"
       :title="item.disabled ? item.hint : undefined"
-      @click="pick"
+      @click="pick(item.action)"
     >
       <span>{{ item.label }}</span>
       <span v-if="item.disabled" class="context-menu__hint">{{ item.hint }}</span>

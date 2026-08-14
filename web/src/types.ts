@@ -40,13 +40,14 @@ export interface Hex {
 export interface Player {
   id: number;
   name: string;
-  points: number;
+  points: number | null;
   hexCount: number;
-  income: number;
-  limit: number;
+  income: number | null;
+  limit: number | null;
   isAi: boolean;
   capital: { q: number; r: number } | null;
   eliminated: boolean;
+  relation: 'self' | 'ally' | 'enemy';
 }
 
 export interface GameState {
@@ -54,6 +55,7 @@ export interface GameState {
   hexes: Hex[];
   winnerId: number | null;
   captureTicks: number;
+  pendingProposals: { from: number; kind: 'peace' | 'alliance' }[];
 }
 
 export interface RoomLobbyInfo {
@@ -96,7 +98,10 @@ export type ClientMessage =
   | { type: 'create-room'; mapType: MapType; maxPlayers: number }
   | { type: 'join-room'; roomId: number }
   | { type: 'start-room' }
-  | { type: 'auth'; token: string };
+  | { type: 'auth'; token: string }
+  | { type: 'declare-war'; q: number; r: number }
+  | { type: 'propose'; q: number; r: number; kind: 'peace' | 'alliance' }
+  | { type: 'respond-proposal'; q: number; r: number; accept: boolean };
 
 export interface AuthProfile {
   sub: string;

@@ -16,6 +16,7 @@ function colorOf(p: Player): string {
 }
 
 function pointsText(p: Player): string {
+  if (p.points === null) return '?';
   if (p.id === props.humanId) {
     const reserve = Math.floor((p.points * props.army) / 100);
     return `${Math.max(0, p.points - reserve)}/${p.limit}`;
@@ -30,13 +31,17 @@ function pointsText(p: Player): string {
       v-for="p in players"
       :key="p.id"
       class="player-list__row"
-      :class="{ 'player-list__row--me': p.id === humanId, 'player-list__row--dead': p.eliminated }"
+      :class="{
+        'player-list__row--me': p.id === humanId,
+        'player-list__row--dead': p.eliminated,
+        'player-list__row--ally': p.relation === 'ally',
+      }"
     >
       <span class="player-list__name" :style="{ color: colorOf(p) }">{{ p.name }}</span>
       <span class="player-list__hexes">{{ p.hexCount }} кл.</span>
       <span v-if="p.eliminated" class="player-list__dead">выбыл</span>
       <span class="player-list__points">{{ pointsText(p) }}</span>
-      <span class="player-list__income">+{{ p.income }}/сек</span>
+      <span v-if="p.income !== null" class="player-list__income">+{{ p.income }}/сек</span>
     </div>
   </div>
 </template>
@@ -67,6 +72,10 @@ function pointsText(p: Player): string {
 .player-list__row--me {
   border-color: #888;
   border-width: 2px;
+}
+
+.player-list__row--ally {
+  border-color: #7cb342;
 }
 
 .player-list__row--dead {
