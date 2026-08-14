@@ -326,6 +326,13 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           text-anchor="middle"
           class="hex-capital"
         >★</text>
+        <text
+          v-if="hex.fortress"
+          :x="hexCenter(hex.q, hex.r).x"
+          :y="hexCenter(hex.q, hex.r).y - 11"
+          text-anchor="middle"
+          class="hex-fortress"
+        >⚑</text>
         <polygon
           v-if="battleOverlay(hex)"
           :points="hexPoints(hex.q, hex.r).points"
@@ -354,6 +361,9 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
       </div>
       <div class="battle-tooltip__row">
         <span>Владелец: {{ playerName(hovered.ownerId) }}{{ capitalPlayer(hovered) ? ' ★ столица' : '' }}</span>
+      </div>
+      <div v-if="hovered.fortress" class="battle-tooltip__row">
+        <span>Крепость</span>
       </div>
       <template v-if="hovered.attackerId !== null">
         <div class="battle-tooltip__row">
@@ -441,6 +451,14 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 .hex-capital {
   font-size: 26px;
   fill: #ffd54f;
+  stroke: #1a1a1a;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.hex-fortress {
+  font-size: 24px;
+  fill: #ffb74d;
   stroke: #1a1a1a;
   stroke-width: 1.5;
   pointer-events: none;

@@ -10,6 +10,9 @@ const props = defineProps<{
   humanId: number | null;
   relation: 'peace' | 'war' | 'alliance';
   pendingFromOwner: { kind: 'peace' | 'alliance' } | null;
+  hexCount: number;
+  fortressCount: number;
+  points: number;
 }>();
 
 const emit = defineEmits<{
@@ -17,14 +20,27 @@ const emit = defineEmits<{
   declareWar: [];
   propose: [kind: 'peace' | 'alliance'];
   respond: [accept: boolean];
+  buildFortress: [];
+  removeFortress: [];
 }>();
 
 const isMine = computed(() => props.hex.ownerId !== null && props.hex.ownerId === props.humanId);
 const isEnemy = computed(() => props.hex.ownerId !== null && props.hex.ownerId !== props.humanId);
 
+const canBuildFortress = computed(() => {
+  const limit = Math.floor(props.hexCount / 15);
+  const nextLimit = 1000 + props.hexCount * 50 - 100 * (props.fortressCount + 1);
+  return limit > props.fortressCount && props.points <= nextLimit;
+});
+
 const items = computed(() => {
   if (isMine.value) {
-    return [{ label: 'Построить крепость', disabled: true, hint: 'будет доступно позже', action: '' }];
+    if (props.hex.fortress) {
+      return [{ label: 'Снести крепость', disabled: false, hint: '', action: 'remove-fortress' }];
+    }
+    return [
+      { label: 'Построить крепость', disabled: !canBuildFortress.value, hint: canBuildFortress.value ? '' : 'нужно 15+ клеток и запас лимита', action: 'build-fortress' },
+    ];
   }
   if (isEnemy.value) {
     if (props.pendingFromOwner) {
@@ -68,6 +84,8 @@ function pick(action: string): void {
   else if (action === 'peace' || action === 'alliance') emit('propose', action);
   else if (action === 'respond-true') emit('respond', true);
   else if (action === 'respond-false') emit('respond', false);
+  else if (action === 'build-fortress') emit('buildFortress');
+  else if (action === 'remove-fortress') emit('removeFortress');
   emit('close');
 }
 </script>

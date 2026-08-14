@@ -179,6 +179,23 @@ function onMenuRespond(accept: boolean): void {
   closeContextMenu();
 }
 
+function onMenuBuildFortress(): void {
+  if (!contextMenu.value) return;
+  client.sendBuildFortress(contextMenu.value.hex.q, contextMenu.value.hex.r);
+  closeContextMenu();
+}
+
+function onMenuRemoveFortress(): void {
+  if (!contextMenu.value) return;
+  client.sendRemoveFortress(contextMenu.value.hex.q, contextMenu.value.hex.r);
+  closeContextMenu();
+}
+
+function fortressCountOf(playerId: number | null): number {
+  if (playerId === null || !game.value) return 0;
+  return game.value.hexes.filter((h) => h.ownerId === playerId && h.fortress).length;
+}
+
 function closeContextMenu(): void {
   contextMenu.value = null;
 }
@@ -427,10 +444,15 @@ onBeforeUnmount(() => {
           :human-id="playerId"
           :relation="contextMenu.relation"
           :pending-from-owner="contextMenu.pendingFromOwner"
+          :hex-count="myPlayer?.hexCount ?? 0"
+          :fortress-count="fortressCountOf(myPlayer?.id ?? null)"
+          :points="myPlayer?.points ?? 0"
           @close="closeContextMenu"
           @declare-war="onMenuDeclareWar"
           @propose="onMenuPropose"
           @respond="onMenuRespond"
+          @build-fortress="onMenuBuildFortress"
+          @remove-fortress="onMenuRemoveFortress"
         />
         <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
         <div v-if="room.log?.length" class="log-panel">

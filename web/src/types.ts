@@ -35,6 +35,7 @@ export interface Hex {
   attackInvestment: number;
   defenseInvestment: number;
   battleProgress: number;
+  fortress?: boolean;
 }
 
 export interface Player {
@@ -101,7 +102,9 @@ export type ClientMessage =
   | { type: 'auth'; token: string }
   | { type: 'declare-war'; q: number; r: number }
   | { type: 'propose'; q: number; r: number; kind: 'peace' | 'alliance' }
-  | { type: 'respond-proposal'; q: number; r: number; accept: boolean };
+  | { type: 'respond-proposal'; q: number; r: number; accept: boolean }
+  | { type: 'build-fortress'; q: number; r: number }
+  | { type: 'remove-fortress'; q: number; r: number };
 
 export interface AuthProfile {
   sub: string;
