@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_COLUMNS, MAP_ROWS } from '../src/map.js';
 import type { GameState, HexState } from '../src/rules.js';
+import { declareWar } from '../src/rules.js';
 import { chooseAiAction } from '../src/ai.js';
 
 function makeState(hexes: Partial<HexState>[], aiPoints = 1000, playerPoints = 1000): GameState {
@@ -63,6 +64,7 @@ describe('chooseAiAction', () => {
       { q: 7, r: 4, terrain: 'mountain' },
       { q: 5, r: 6, terrain: 'mountain' },
     ], 400);
+    declareWar(s, AI, P);
     expect(chooseAiAction(s, AI)).toEqual({ type: 'attack', q: 5, r: 5, points: 150 });
   });
   it('приоритет 5: не атакует, если очков меньше стоимости гекса', () => {
@@ -112,6 +114,7 @@ describe('chooseAiAction', () => {
       { q: 7, r: 4, terrain: 'mountain' },
       { q: 5, r: 6, terrain: 'mountain' },
     ], 400);
+    declareWar(s, AI, P);
     expect(chooseAiAction(s, 2)).toEqual({ type: 'attack', q: 5, r: 5, points: 150 });
   });
   it('первый захват не выбирает воду', () => {

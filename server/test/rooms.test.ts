@@ -600,6 +600,45 @@ describe('Room: дипломатия', () => {
     room.tick();
     expect(rules.relation(g, 1, ai.id)).toBe('peace');
   });
+  it('агрессия ИИ: объявляет войну без общей границы при перевесе', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    // ИИ далеко от человека (нет общей границы)
+    const aiHexes = g.hexes.filter((h) => (h.q === 10 || h.q === 11 || h.q === 12) && h.r <= 4);
+    for (const hex of aiHexes) hex.ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[10].q, r: g.hexes[10].r };
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('war');
+  });
+  it('после принятия мира ИИ не переобъявляет войну в течение кулдауна', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    for (let i = 2; i <= 10; i++) g.hexes[i].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    room['scoutCache'] = { hexCount: 1, points: 100, updatedAt: Date.now() };
+    room.tick(); // ИИ сильнее (10>1) — объявляет войну
+    expect(rules.relation(g, 1, ai.id)).toBe('war');
+    const aiHex = g.hexes.find((h) => h.ownerId === ai.id)!;
+    const result = room.handleAction(1, 'propose', { q: aiHex.q, r: aiHex.r, kind: 'peace' });
+    expect(result.type).toBe('state');
+    room.tick(); // ИИ принимает мир (atWar) и ставит кулдаун
+    expect(rules.relation(g, 1, ai.id)).toBe('peace');
+    room.tick(); // в кулдауне — войны нет
+    expect(rules.relation(g, 1, ai.id)).toBe('peace');
+    room['peaceCooldowns'].set(`${ai.id}-1`, Date.now() - 1000);
+    room.tick(); // кулдаун истёк — снова война
+    expect(rules.relation(g, 1, ai.id)).toBe('war');
+  });
   it('разведка: кэш обновляется не чаще 30 секунд', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
     room.addHuman('A', 1);

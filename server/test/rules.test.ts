@@ -20,6 +20,7 @@ import {
   isAdjacent,
   isInBounds,
   makeAlliance,
+  makePeace,
   playerIncome,
   pointLimit,
   relation,
@@ -859,5 +860,19 @@ describe('дипломатия', () => {
     declareWar(s, P, AI);
     applyEnclosure(s);
     expect(s.hexes.find((h) => h.q === 7 && h.r === 6)!.ownerId).toBe(AI);
+  });
+  it('мир отменяет идущие битвы между сторонами', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P, attackerId: AI, defenderId: P, attackInvestment: 300 }]);
+    makePeace(s, P, AI);
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    expect(hex.attackerId).toBeNull();
+    expect(hex.attackInvestment).toBe(0);
+  });
+  it('союз отменяет идущие битвы между сторонами', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI, attackerId: P, defenderId: AI, defenseInvestment: 300 }]);
+    makeAlliance(s, P, AI);
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    expect(hex.attackerId).toBeNull();
+    expect(hex.defenseInvestment).toBe(0);
   });
 });

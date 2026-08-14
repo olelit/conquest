@@ -77,6 +77,7 @@ export class Room {
   private lastCapturerId: number | null = null;
   private pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[] = [];
   private scoutCache: { hexCount: number; points: number; updatedAt: number } | null = null;
+  private peaceCooldowns = new Map<string, number>();
 
   readonly stats: GameStatsRecorder;
   private statsWritten = false;
@@ -219,6 +220,7 @@ export class Room {
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
     this.scoutCache = null;
+    this.peaceCooldowns.clear();
     this.paused = false;
     this.finishedAt = null;
     this.aiLastActionAt.clear();
@@ -323,8 +325,12 @@ export class Room {
         const proposer = state.players.find((p) => p.id === proposal.from);
         if (!proposer || proposer.eliminated) continue;
         if (this.aiAcceptsProposal(state, aiPlayer.id, proposal.from)) {
-          if (proposal.kind === 'peace') rules.makePeace(state, aiPlayer.id, proposal.from);
-          else rules.makeAlliance(state, aiPlayer.id, proposal.from);
+          if (proposal.kind === 'peace') {
+            rules.makePeace(state, aiPlayer.id, proposal.from);
+            this.peaceCooldowns.set(`${aiPlayer.id}-${proposal.from}`, Date.now() + 60000);
+          } else {
+            rules.makeAlliance(state, aiPlayer.id, proposal.from);
+          }
           this.addLog(`${this.playerName(aiPlayer.id)} и ${this.playerName(proposal.from)} заключили ${proposal.kind === 'peace' ? 'мир' : 'союз'}`);
         } else {
           this.addLog(`${this.playerName(aiPlayer.id)} отклонил предложение ${this.playerName(proposal.from)}`);
@@ -391,7 +397,8 @@ export class Room {
       if (target.id === aiId || target.eliminated) continue;
       const rel = rules.relation(state, aiId, target.id);
       if (rel === 'war' || rel === 'alliance') continue;
-      if (!this.hasBorderWith(state, aiId, target.id)) continue;
+      const cooldownUntil = this.peaceCooldowns.get(`${aiId}-${target.id}`);
+      if (cooldownUntil !== undefined && Date.now() < cooldownUntil) continue;
       const targetSide = target.isAi ? sideStrength(target.id) : { hexes: this.scoutCache?.hexCount ?? 0, points: this.scoutCache?.points ?? 0 };
       if (aiSide.hexes > targetSide.hexes || aiSide.points > targetSide.points) {
         rules.declareWar(state, aiId, target.id);
@@ -404,6 +411,7 @@ export class Room {
     const state = this.state!;
     const elim = rules.eliminateIfCapitalLost(state, playerId, this.rng);
     if (elim) {
+      this.pendingProposals = this.pendingProposals.filter((p) => p.from !== elim.eliminatedId && p.to !== elim.eliminatedId);
       this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
       if (elim.neutralHexes.length > 0) {
         this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
@@ -484,6 +492,9 @@ export class Room {
       case 'declare-war': {
         const target = this.targetPlayerId(playerId, msg);
         if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        if (rules.relation(this.state!, playerId, target) === 'war') {
+          return { type: 'error', message: 'Уже в войне' };
+        }
         rules.declareWar(this.state, playerId, target);
         this.addLog(`${this.playerName(playerId)} объявил войну ${this.playerName(target)}`);
         return { type: 'state' };
@@ -494,7 +505,7 @@ export class Room {
         const kind = msg.kind;
         if (kind !== 'peace' && kind !== 'alliance') return { type: 'error', message: 'Неизвестный тип предложения' };
         const rel = rules.relation(this.state!, playerId, target);
-        if (kind === 'peace' && rel === 'peace') return { type: 'error', message: 'Уже в мире' };
+        if (kind === 'peace' && rel !== 'war') return { type: 'error', message: 'Мир можно предложить только во время войны' };
         if (kind === 'alliance' && (rel === 'alliance' || rel === 'war')) {
           return { type: 'error', message: 'Союз невозможен при текущих отношениях' };
         }

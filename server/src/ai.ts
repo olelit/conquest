@@ -1,4 +1,4 @@
-import { findHex, hexCount, hasAdjacentOwner, hasPeacefulNeighbor, terrainCost, type GameState } from './rules.js';
+import { findHex, hasAdjacentOwner, hasPeacefulNeighbor, hexCount, relation, terrainCost, type GameState } from './rules.js';
 
 export type AiAction =
   | { type: 'defend'; q: number; r: number; points: number }
@@ -45,7 +45,11 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
   }
 
   const enemyHexes = state.hexes.filter(
-    (hex) => hex.ownerId !== null && hex.ownerId !== aiId && hasAdjacentOwner(state, hex.q, hex.r, aiId),
+    (hex) =>
+      hex.ownerId !== null &&
+      hex.ownerId !== aiId &&
+      relation(state, aiId, hex.ownerId) === 'war' &&
+      hasAdjacentOwner(state, hex.q, hex.r, aiId),
   );
   if (enemyHexes.length > 0) {
     const hex = enemyHexes.sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain))[0];

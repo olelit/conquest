@@ -503,11 +503,23 @@ export function declareWar(state: GameState, a: number, b: number): void {
 export function makePeace(state: GameState, a: number, b: number): void {
   const d = state.diplomacy ?? (state.diplomacy = new Map());
   d.set(diplomacyKey(a, b), 'peace');
+  cancelBattlesBetween(state, a, b);
 }
 
 export function makeAlliance(state: GameState, a: number, b: number): void {
   const d = state.diplomacy ?? (state.diplomacy = new Map());
   d.set(diplomacyKey(a, b), 'alliance');
+  cancelBattlesBetween(state, a, b);
+}
+
+function cancelBattlesBetween(state: GameState, a: number, b: number): void {
+  for (const hex of state.hexes) {
+    if (hex.attackerId === null) continue;
+    const involved = (pid: number | null) => pid === b || pid === a;
+    if (involved(hex.attackerId) && (involved(hex.ownerId) || involved(hex.defenderId))) {
+      resetBattle(hex);
+    }
+  }
 }
 
 export function hasPeacefulNeighbor(state: GameState, q: number, r: number, playerId: number): boolean {
