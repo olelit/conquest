@@ -9,12 +9,15 @@ import {
   applyEnclosure,
   applyIncome,
   BASE_POINTS,
+  buildFortress,
   CAPTURE_TICKS,
   computeWinner,
   declareWar,
   DRAIN_PER_TICK,
   eliminateIfCapitalLost,
   findHex,
+  fortressCount,
+  fortressLimit,
   hasAdjacentOwner,
   hexCount,
   isAdjacent,
@@ -24,12 +27,15 @@ import {
   playerIncome,
   pointLimit,
   relation,
+  removeFortress,
   terrainCost,
   TERRAIN_COSTS,
   tickBattles,
   validateAttack,
+  validateBuildFortress,
   validateCapture,
   validateDefend,
+  validateRemoveFortress,
   winHexCount,
   type GameState,
   type HexState,
@@ -40,7 +46,7 @@ function makeState(hexes: Partial<HexState>[] = [], players: { id: number; point
   const h: HexState[] = [];
   for (let r = 0; r < MAP_ROWS; r++) {
     for (let q = 0; q < MAP_COLUMNS; q++) {
-      h.push({ q, r, terrain: 'grass', ownerId: null, attackerId: null, defenderId: null, attackInvestment: 0, defenseInvestment: 0, battleProgress: 0 });
+      h.push({ q, r, terrain: 'grass', ownerId: null, attackerId: null, defenderId: null, attackInvestment: 0, defenseInvestment: 0, battleProgress: 0, fortress: false });
     }
   }
   for (const p of hexes) {
@@ -874,5 +880,83 @@ describe('дипломатия', () => {
     const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
     expect(hex.attackerId).toBeNull();
     expect(hex.defenseInvestment).toBe(0);
+  });
+});
+
+describe('крепость', () => {
+  it('лимит построек: floor(клетки/15)', () => {
+    expect(fortressLimit(14)).toBe(0);
+    expect(fortressLimit(15)).toBe(1);
+    expect(fortressLimit(30)).toBe(2);
+    expect(fortressLimit(45)).toBe(3);
+  });
+  it('лимит очков уменьшается на 100 за крепость', () => {
+    expect(pointLimit(10)).toBe(1500);
+    expect(pointLimit(10, 1)).toBe(1400);
+    expect(pointLimit(10, 5)).toBe(1000);
+    expect(pointLimit(0, 10)).toBe(0); // не ниже 0
+  });
+  it('постройка: свой гекс, не в битве, лимит построек, запас очков', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P }]);
+    s.players[0].capital = { q: 5, r: 5 };
+    // 1 клетка — лимит 0
+    expect(validateBuildFortress(s, P, 5, 5).ok).toBe(false);
+    // 15 клеток — можно, очки 1000 <= новый лимит 2000-100=1900? нет: лимит = 1000+15*50-100 = 1650 >= 1000
+    for (let i = 1; i < 15; i++) s.hexes[i].ownerId = P;
+    expect(validateBuildFortress(s, P, 5, 5).ok).toBe(true);
+    buildFortress(s, P, 5, 5);
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 5)!.fortress).toBe(true);
+    expect(fortressCount(s, P)).toBe(1);
+  });
+  it('постройка: нельзя на чужом гексе и при нехватке очков-лимита', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: AI }, { q: 6, r: 5, ownerId: P }]);
+    expect(validateBuildFortress(s, P, 5, 5).ok).toBe(false); // чужой
+    for (let i = 0; i < 15; i++) s.hexes[i].ownerId = P;
+    const player = s.players[0];
+    player.points = 2000; // новый лимит с крепостью = 1000+750-100 = 1650 < 2000
+    expect(validateBuildFortress(s, P, 6, 5).ok).toBe(false);
+  });
+  it('постройка: нельзя на гексе в битве', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P, attackerId: AI, attackInvestment: 100 }]);
+    for (let i = 1; i < 15; i++) s.hexes[i].ownerId = P;
+    expect(validateBuildFortress(s, P, 5, 5).ok).toBe(false);
+  });
+  it('снос крепости', () => {
+    const s = makeState([{ q: 5, r: 5, ownerId: P, fortress: true }]);
+    expect(validateRemoveFortress(s, P, 5, 5).ok).toBe(true);
+    expect(validateRemoveFortress(s, P, 6, 5).ok).toBe(false);
+    removeFortress(s, P, 5, 5);
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 5)!.fortress).toBe(false);
+  });
+  it('крепость уничтожается при захвате в битве', () => {
+    const s = makeState([
+      { q: 5, r: 5, ownerId: P, fortress: true, attackerId: AI, defenderId: P, attackInvestment: 500, battleProgress: CAPTURE_TICKS - 1 },
+      { q: 6, r: 5, ownerId: AI },
+    ]);
+    tickBattles(s);
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    expect(hex.ownerId).toBe(AI);
+    expect(hex.fortress).toBe(false);
+  });
+  it('крепость уничтожается при отрезании', () => {
+    const s = makeState([
+      { q: 2, r: 2, ownerId: P }, { q: 3, r: 2, ownerId: P },
+      { q: 5, r: 5, ownerId: P, fortress: true },
+    ]);
+    s.players[0].capital = { q: 3, r: 2 };
+    s.hexes.find((h) => h.q === 2 && h.r === 2)!.ownerId = null; // шейка захвачена
+    applyCut(s, P);
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 5)!.ownerId).toBeNull();
+    expect(s.hexes.find((h) => h.q === 5 && h.r === 5)!.fortress).toBe(false);
+  });
+  it('крепость уничтожается при окружении', () => {
+    const s = makeState([{ q: 7, r: 6, ownerId: P, fortress: true }, { q: 8, r: 6, ownerId: P }]);
+    s.players[0].capital = { q: 7, r: 6 };
+    for (const [q, r] of [[6,6],[7,7],[7,5],[8,5],[6,7],[9,6],[8,7],[9,5]]) {
+      s.hexes.find((h) => h.q === q && h.r === r)!.ownerId = AI;
+    }
+    declareWar(s, P, AI);
+    applyEnclosure(s);
+    expect(s.hexes.find((h) => h.q === 7 && h.r === 6)!.fortress).toBe(false);
   });
 });

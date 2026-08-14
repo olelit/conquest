@@ -30,6 +30,7 @@ export interface HexState {
   attackInvestment: number;
   defenseInvestment: number;
   battleProgress: number;
+  fortress: boolean;
 }
 
 export interface GameState {
@@ -78,8 +79,8 @@ export function hasAdjacentOwner(state: GameState, q: number, r: number, playerI
   });
 }
 
-export function pointLimit(hexCount: number): number {
-  return BASE_POINTS + hexCount * LIMIT_PER_HEX;
+export function pointLimit(hexCount: number, fortresses = 0): number {
+  return Math.max(0, BASE_POINTS + hexCount * LIMIT_PER_HEX - 100 * fortresses);
 }
 
 export function winHexCount(totalHexes: number): number {
@@ -88,6 +89,14 @@ export function winHexCount(totalHexes: number): number {
 
 export function terrainCost(terrain: Terrain): number {
   return TERRAIN_COSTS[terrain];
+}
+
+export function fortressLimit(hexCount: number): number {
+  return Math.floor(hexCount / 15);
+}
+
+export function fortressCount(state: GameState, playerId: number): number {
+  return state.hexes.reduce((n, h) => n + (h.ownerId === playerId && h.fortress ? 1 : 0), 0);
 }
 
 function hasGameWinner(state: GameState): boolean {
@@ -171,6 +180,43 @@ export function validateDefend(state: GameState, playerId: number, q: number, r:
   return { ok: true };
 }
 
+export function validateBuildFortress(state: GameState, playerId: number, q: number, r: number): ActionValidation {
+  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
+  const hex = findHex(state, q, r);
+  if (!hex) return { ok: false, error: 'Гекс не найден' };
+  if (hex.ownerId !== playerId) return { ok: false, error: 'Это не ваш гекс' };
+  if (hex.attackerId !== null) return { ok: false, error: 'За гекс идёт битва' };
+  if (hex.fortress) return { ok: false, error: 'Здесь уже есть крепость' };
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
+  const count = hexCount(state, playerId);
+  if (fortressCount(state, playerId) >= fortressLimit(count)) {
+    return { ok: false, error: 'Достигнут лимит крепостей' };
+  }
+  if (player.points > pointLimit(count, fortressCount(state, playerId) + 1)) {
+    return { ok: false, error: 'Сначала потратьте очки: крепость уменьшает лимит' };
+  }
+  return { ok: true };
+}
+
+export function buildFortress(state: GameState, playerId: number, q: number, r: number): void {
+  const hex = findHex(state, q, r)!;
+  hex.fortress = true;
+}
+
+export function validateRemoveFortress(state: GameState, playerId: number, q: number, r: number): ActionValidation {
+  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
+  const hex = findHex(state, q, r);
+  if (!hex) return { ok: false, error: 'Гекс не найден' };
+  if (hex.ownerId !== playerId || !hex.fortress) return { ok: false, error: 'Здесь нет вашей крепости' };
+  return { ok: true };
+}
+
+export function removeFortress(state: GameState, playerId: number, q: number, r: number): void {
+  const hex = findHex(state, q, r)!;
+  hex.fortress = false;
+}
+
 export function applyCapture(state: GameState, playerId: number, q: number, r: number): void {
   const hex = findHex(state, q, r)!;
   const player = state.players.find((p) => p.id === playerId)!;
@@ -187,6 +233,7 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
     hex.battleProgress = 0;
   } else {
     hex.ownerId = playerId;
+    hex.fortress = false;
     if (isFirst && !player.capital) player.capital = { q, r };
   }
 }
@@ -251,6 +298,7 @@ export function tickBattles(state: GameState): BattleResult[] {
       const winner = state.players.find((p) => p.id === hex.attackerId);
       if (winner) winner.points += hex.attackInvestment;
       hex.ownerId = hex.attackerId;
+      hex.fortress = false;
       if (winner && !winner.capital && hexCount(state, winner.id) === 1) {
         winner.capital = { q: hex.q, r: hex.r };
       }
@@ -267,6 +315,7 @@ export function tickBattles(state: GameState): BattleResult[] {
       const winner = state.players.find((p) => p.id === hex.defenderId);
       if (winner) winner.points += hex.defenseInvestment;
       hex.ownerId = hex.defenderId;
+      hex.fortress = false;
       if (winner && !winner.capital && hexCount(state, winner.id) === 1) {
         winner.capital = { q: hex.q, r: hex.r };
       }
@@ -296,7 +345,7 @@ export function applyIncome(state: GameState): void {
   for (const player of state.players) {
     const count = hexCount(state, player.id);
     const income = Math.floor(playerIncome(state, player.id) * (player.incomeMultiplier ?? 1));
-    player.points = Math.min(player.points + income, pointLimit(count));
+    player.points = Math.min(player.points + income, pointLimit(count, fortressCount(state, player.id)));
   }
 }
 
@@ -335,7 +384,10 @@ export function applyEnclosure(state: GameState): EnclosureClaim[] {
     const owner = enclosureOwner(state, region);
     if (owner !== null && owner !== regionOwnerId) {
       if (regionOwnerId !== null && relation(state, owner, regionOwnerId) !== 'war') continue;
-      for (const hex of region) hex.ownerId = owner;
+      for (const hex of region) {
+        hex.ownerId = owner;
+        hex.fortress = false;
+      }
       claims.push({ ownerId: owner, prevOwnerId: regionOwnerId, hexes: region });
     }
   }
@@ -376,6 +428,7 @@ export function applyCut(state: GameState, playerId: number): HexState[] {
     if (component === main) continue;
     for (const hex of component) {
       hex.ownerId = null;
+      hex.fortress = false;
       cut.push(hex);
     }
   }
@@ -424,17 +477,22 @@ export function eliminateIfCapitalLost(
       }
       for (let i = k * perAi; i < owned.length; i++) {
         owned[i].ownerId = null;
+        owned[i].fortress = false;
         neutralHexes.push(owned[i]);
       }
     } else {
       for (const hex of owned) {
         hex.ownerId = null;
+        hex.fortress = false;
         neutralHexes.push(hex);
       }
     }
   }
   for (const ai of newAis) {
-    for (const hex of ai.hexes) hex.ownerId = ai.id;
+    for (const hex of ai.hexes) {
+      hex.ownerId = ai.id;
+      hex.fortress = false;
+    }
   }
   return { eliminatedId: playerId, neutralHexes, newAis, capturerId };
 }

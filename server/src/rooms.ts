@@ -207,6 +207,7 @@ export class Room {
       attackInvestment: 0,
       defenseInvestment: 0,
       battleProgress: 0,
+      fortress: false,
     }));
   }
 
