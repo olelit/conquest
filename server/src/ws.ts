@@ -114,7 +114,9 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
           }
           case 'declare-war':
           case 'propose':
-          case 'respond-proposal': {
+          case 'respond-proposal':
+          case 'build-fortress':
+          case 'remove-fortress': {
             const result = manager.handleAction(connId, message as { type: string; q?: number; r?: number; kind?: string; accept?: boolean });
             if (result.type === 'state') broadcast();
             else ws.send(JSON.stringify(result));

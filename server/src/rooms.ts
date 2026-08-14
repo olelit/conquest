@@ -298,7 +298,10 @@ export class Room {
     for (const player of state.players) {
       if (!player.eliminated) continue;
       for (const hex of state.hexes) {
-        if (hex.ownerId === player.id) hex.ownerId = null;
+        if (hex.ownerId === player.id) {
+          hex.ownerId = null;
+          hex.fortress = false;
+        }
       }
     }
     if (
@@ -482,6 +485,20 @@ export class Room {
         this.recordReaction(playerId, msg.q, msg.r, Date.now());
         return { type: 'state' };
       }
+      case 'build-fortress': {
+        validation = rules.validateBuildFortress(this.state, playerId, msg.q, msg.r);
+        if (!validation.ok) return { type: 'error', message: validation.error };
+        rules.buildFortress(this.state, playerId, msg.q, msg.r);
+        this.addLog(`${this.playerName(playerId)} построил крепость на (${msg.q}, ${msg.r})`);
+        return { type: 'state' };
+      }
+      case 'remove-fortress': {
+        validation = rules.validateRemoveFortress(this.state, playerId, msg.q, msg.r);
+        if (!validation.ok) return { type: 'error', message: validation.error };
+        rules.removeFortress(this.state, playerId, msg.q, msg.r);
+        this.addLog(`${this.playerName(playerId)} снёс крепость на (${msg.q}, ${msg.r})`);
+        return { type: 'state' };
+      }
       case 'declare-war': {
         const target = this.targetPlayerId(playerId, msg);
         if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
@@ -580,7 +597,7 @@ export class Room {
                 points: hidden ? null : p.points,
                 hexCount: rules.hexCount(state, p.id),
                 income: hidden ? null : rules.playerIncome(state, p.id),
-                limit: hidden ? null : rules.pointLimit(rules.hexCount(state, p.id)),
+                limit: hidden ? null : rules.pointLimit(rules.hexCount(state, p.id), rules.fortressCount(state, p.id)),
                 isAi: p.isAi ?? false,
                 capital: p.capital ?? null,
                 eliminated: p.eliminated ?? false,

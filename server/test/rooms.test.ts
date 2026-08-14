@@ -688,3 +688,35 @@ describe('Room: дипломатия', () => {
     expect(proposals).toEqual([{ from: ai.id, kind: 'alliance' }]);
   });
 });
+
+describe('Room: крепость', () => {
+  it('build-fortress и remove-fortress через handleAction', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    for (let i = 0; i < 15; i++) g.hexes[i].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    const hex = g.hexes[0];
+    const build = room.handleAction(1, 'build-fortress', { q: hex.q, r: hex.r });
+    expect(build.type).toBe('state');
+    expect(hex.fortress).toBe(true);
+    expect(room.view(1).log.some((l) => l.includes('построил крепость'))).toBe(true);
+    const remove = room.handleAction(1, 'remove-fortress', { q: hex.q, r: hex.r });
+    expect(remove.type).toBe('state');
+    expect(hex.fortress).toBe(false);
+    expect(room.view(1).log.some((l) => l.includes('снёс крепость'))).toBe(true);
+  });
+  it('view: лимит уменьшен на 100 за крепость', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    for (let i = 0; i < 15; i++) g.hexes[i].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    const before = room.view(1).game!.players[0].limit;
+    g.hexes[0].fortress = true;
+    const after = room.view(1).game!.players[0].limit;
+    expect(after).toBe(before! - 100);
+  });
+});
