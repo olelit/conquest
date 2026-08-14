@@ -80,6 +80,7 @@ export interface RoomView {
   maxPlayers: number;
   status: 'waiting' | 'playing';
   aiMode: boolean;
+  loadTest: boolean;
   hostPlayerId: number | null;
   slots: RoomSlot[];
   paused: boolean;
@@ -103,6 +104,7 @@ export type ClientMessage =
   | { type: 'declare-war'; q: number; r: number }
   | { type: 'propose'; q: number; r: number; kind: 'peace' | 'alliance' }
   | { type: 'respond-proposal'; q: number; r: number; accept: boolean }
+  | { type: 'start-load-test'; aiCount: number }
   | { type: 'build-fortress'; q: number; r: number }
   | { type: 'remove-fortress'; q: number; r: number };
 

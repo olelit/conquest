@@ -67,6 +67,10 @@ export class GameClient {
     this.send({ type: 'leave-room' });
   }
 
+  sendStartLoadTest(aiCount: number): void {
+    this.send({ type: 'start-load-test', aiCount });
+  }
+
   sendStartRoom(): void {
     this.send({ type: 'start-room' });
   }

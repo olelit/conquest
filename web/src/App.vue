@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ArmyBar from './components/ArmyBar.vue';
 import ContextMenu from './components/ContextMenu.vue';
+import FpsOverlay from './components/FpsOverlay.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
@@ -28,7 +29,7 @@ const auth = ref<AuthProfile | null>(null);
 const rooms = ref<RoomLobbyInfo[]>([]);
 const room = ref<RoomView | null>(null);
 const playerId = ref<number | null>(null);
-const screen = ref<'menu' | 'ai' | 'lobby'>('menu');
+const screen = ref<'menu' | 'ai' | 'lobby' | 'loadtest'>('menu');
 const burgerOpen = ref(false);
 const army = ref(20);
 const contextMenu = ref<{
@@ -44,6 +45,7 @@ const aiCount = ref(1);
 const aiDifficulty = ref<Difficulty>('medium');
 const createMapType = ref<MapType>('normal');
 const createMaxPlayers = ref(5);
+const loadTestPlayers = ref(10);
 
 const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
@@ -254,6 +256,14 @@ function goToLobby(): void {
   screen.value = 'lobby';
 }
 
+function goToLoadTest(): void {
+  screen.value = 'loadtest';
+}
+
+function startLoadTest(): void {
+  client.sendStartLoadTest(loadTestPlayers.value);
+}
+
 function startSolo(): void {
   client.sendStartSolo(aiMapType.value, aiCount.value, aiDifficulty.value);
 }
@@ -325,6 +335,7 @@ onBeforeUnmount(() => {
         <p class="menu__subtitle">Выбери режим игры</p>
         <button class="menu__btn" :disabled="!connected" @click="goToAi">Играть с компьютером</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLobby">Играть с людьми</button>
+        <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">Нагрузочный тест</button>
         <div v-if="GOOGLE_CLIENT_ID" class="menu__google">
           <div v-if="auth" class="menu__auth">Вы вошли как {{ auth.name }}</div>
           <div v-else id="google-btn"></div>
@@ -388,6 +399,24 @@ onBeforeUnmount(() => {
       </div>
     </template>
 
+    <template v-else-if="screen === 'loadtest' && !room">
+      <div class="menu">
+        <h1 class="menu__title">Conquest</h1>
+        <p class="menu__subtitle">Нагрузочный тест — N игроков на карте «Круглая»</p>
+        <div class="menu__row">
+          <span class="menu__label">Игроков:</span>
+          <select v-model.number="loadTestPlayers" class="menu__select">
+            <option :value="5">5</option>
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="30">30</option>
+          </select>
+        </div>
+        <button class="menu__btn" :disabled="!connected" @click="startLoadTest">Запустить тест</button>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
+      </div>
+    </template>
+
     <template v-else-if="room && room.status === 'waiting'">
       <div class="menu">
         <h1 class="menu__title">{{ room.name }}</h1>
@@ -425,7 +454,8 @@ onBeforeUnmount(() => {
         <div v-else-if="winner" class="banner banner--win banner--center">Победа: {{ winner }}!</div>
         <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
-        <Hud v-if="game" :game="game" :human-id="playerId" :army="army" />
+        <Hud v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" />
+        <FpsOverlay v-if="room.loadTest" />
         <HexMap
           v-if="game"
           :hexes="game.hexes"
@@ -454,8 +484,8 @@ onBeforeUnmount(() => {
           @build-fortress="onMenuBuildFortress"
           @remove-fortress="onMenuRemoveFortress"
         />
-        <ArmyBar v-if="game" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
-        <div v-if="room.log?.length" class="log-panel">
+        <ArmyBar v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
+        <div v-if="room.log?.length && !room.loadTest" class="log-panel">
           <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
         </div>
       </div>
