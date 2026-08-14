@@ -371,19 +371,6 @@ export class Room {
     this.scoutCache = { hexCount: rules.hexCount(state, human.id), points: human.points, updatedAt: now };
   }
 
-  private hasBorderWith(state: GameState, a: number, b: number): boolean {
-    const offsets: [number, number][] = [
-      [1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1],
-    ];
-    return state.hexes.some((hex) => {
-      if (hex.ownerId !== a) return false;
-      return offsets.some(([dq, dr]) => {
-        const n = rules.findHex(state, hex.q + dq, hex.r + dr);
-        return n !== undefined && n.ownerId === b;
-      });
-    });
-  }
-
   private maybeDeclareWar(state: GameState, aiId: number): void {
     const sideStrength = (id: number) => {
       const side = [id, ...rules.alliesOf(state, id)];
@@ -412,6 +399,11 @@ export class Room {
     const elim = rules.eliminateIfCapitalLost(state, playerId, this.rng);
     if (elim) {
       this.pendingProposals = this.pendingProposals.filter((p) => p.from !== elim.eliminatedId && p.to !== elim.eliminatedId);
+      for (const [key] of this.peaceCooldowns) {
+        if (key.startsWith(`${elim.eliminatedId}-`) || key.endsWith(`-${elim.eliminatedId}`)) {
+          this.peaceCooldowns.delete(key);
+        }
+      }
       this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
       if (elim.neutralHexes.length > 0) {
         this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
