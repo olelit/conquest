@@ -9,6 +9,7 @@ export const INCOME_PER_HEX = config.incomePerHex;
 export const MINE_INCOME_BONUS = config.mineIncomeBonus;
 export const CAPTURE_TICKS = config.captureTicks;
 export const DRAIN_PER_TICK = config.drainPerTick;
+export const FORTRESS_DRAIN_PER_TICK = Math.round(DRAIN_PER_TICK * 1.25);
 
 export interface PlayerState {
   id: number;
@@ -97,6 +98,19 @@ export function fortressLimit(hexCount: number): number {
 
 export function fortressCount(state: GameState, playerId: number): number {
   return state.hexes.reduce((n, h) => n + (h.ownerId === playerId && h.fortress ? 1 : 0), 0);
+}
+
+export function isFortressProtected(state: GameState, hex: HexState): boolean {
+  if (hex.fortress) return true;
+  const defender = hex.defenderId ?? hex.ownerId;
+  if (defender === null) return false;
+  return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
+    const nq = hex.q + dq;
+    const nr = hex.r + dr;
+    if (!isInBounds(state, nq, nr)) return false;
+    const neighbor = findHex(state, nq, nr);
+    return neighbor !== undefined && neighbor.fortress && neighbor.ownerId === defender;
+  });
 }
 
 function hasGameWinner(state: GameState): boolean {
@@ -281,7 +295,8 @@ export function tickBattles(state: GameState): BattleResult[] {
   const results: BattleResult[] = [];
   for (const hex of state.hexes) {
     if (hex.attackerId === null) continue;
-    hex.attackInvestment = Math.max(0, hex.attackInvestment - DRAIN_PER_TICK);
+    const attackerDrain = isFortressProtected(state, hex) ? FORTRESS_DRAIN_PER_TICK : DRAIN_PER_TICK;
+    hex.attackInvestment = Math.max(0, hex.attackInvestment - attackerDrain);
     hex.defenseInvestment = Math.max(0, hex.defenseInvestment - DRAIN_PER_TICK);
     if (hex.attackInvestment === 0 && hex.defenseInvestment === 0) {
       results.push({ q: hex.q, r: hex.r, winnerId: null });

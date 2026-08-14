@@ -959,4 +959,32 @@ describe('крепость', () => {
     applyEnclosure(s);
     expect(s.hexes.find((h) => h.q === 7 && h.r === 6)!.fortress).toBe(false);
   });
+  it('защищённый гекс: атакующий теряет 13 очков/тик вместо 10', () => {
+    const s = makeState([
+      { q: 5, r: 5, ownerId: P, fortress: true },
+      { q: 6, r: 5, ownerId: P, attackerId: AI, defenderId: P, attackInvestment: 100, defenseInvestment: 0 },
+      { q: 7, r: 5, ownerId: AI },
+    ]);
+    tickBattles(s);
+    const hex = s.hexes.find((h) => h.q === 6 && h.r === 5)!;
+    expect(hex.attackInvestment).toBe(100 - 13);
+  });
+  it('незащищённый гекс: дренаж 10', () => {
+    const s = makeState([
+      { q: 5, r: 5, ownerId: P },
+      { q: 6, r: 5, ownerId: P },
+      { q: 7, r: 5, ownerId: AI, attackerId: AI, defenderId: P, attackInvestment: 100, defenseInvestment: 0 },
+    ]);
+    tickBattles(s);
+    const hex = s.hexes.find((h) => h.q === 7 && h.r === 5)!;
+    expect(hex.attackInvestment).toBe(90);
+  });
+  it('крепость на самом атакуемом гексе тоже защищает', () => {
+    const s = makeState([
+      { q: 5, r: 5, ownerId: P, fortress: true, attackerId: AI, defenderId: P, attackInvestment: 100, defenseInvestment: 0 },
+    ]);
+    tickBattles(s);
+    const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
+    expect(hex.attackInvestment).toBe(87);
+  });
 });
