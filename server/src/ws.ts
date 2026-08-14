@@ -88,6 +88,12 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             else sendError(ws, result.error);
             return;
           }
+          case 'start-load-test': {
+            const result = manager.createLoadTest(connId, Number(message.aiCount));
+            if (result.ok) broadcast();
+            else sendError(ws, result.error);
+            return;
+          }
           case 'create-room': {
             const result = manager.createRoom(connId, String(message.mapType ?? '') as MapType, Number(message.maxPlayers));
             if (result.ok) broadcast();

@@ -732,3 +732,19 @@ describe('Room: крепость', () => {
     expect(g.hexes.some((h) => h.fortress)).toBe(true);
   });
 });
+
+describe('RoomManager: нагрузочный тест', () => {
+  it('createLoadTest: комната с нужным числом ИИ и флагом loadTest', () => {
+    const m = new RoomManager();
+    expect(m.createLoadTest(1, 30).ok).toBe(true);
+    const room = m.roomForConn(1)!;
+    expect(room.view(1).loadTest).toBe(true);
+    expect(room.gameState!.players).toHaveLength(31);
+    expect(room.gameState!.players.filter((p) => p.isAi)).toHaveLength(30);
+  });
+  it('createLoadTest: недопустимое число игроков — ошибка', () => {
+    const m = new RoomManager();
+    expect(m.createLoadTest(1, 7).ok).toBe(false);
+    expect(m.createLoadTest(1, 100).ok).toBe(false);
+  });
+});

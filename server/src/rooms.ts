@@ -45,6 +45,7 @@ export interface RoomView {
   maxPlayers: number;
   status: RoomStatus;
   aiMode: boolean;
+  loadTest: boolean;
   hostPlayerId: number | null;
   slots: { id: number; name: string; isAi: boolean }[];
   paused: boolean;
@@ -94,6 +95,7 @@ export class Room {
     private readonly aiCount: number,
     private readonly rng: () => number = Math.random,
     readonly difficulty: Difficulty = 'medium',
+    readonly loadTest = false,
   ) {
     this.stats = new GameStatsRecorder(this.id);
   }
@@ -583,6 +585,7 @@ export class Room {
       maxPlayers: this.maxPlayers,
       status: this.status,
       aiMode: this.aiMode,
+      loadTest: this.loadTest,
       hostPlayerId: this.hostPlayerId,
       slots: this.slots.map((s) => ({ id: s.id, name: s.name, isAi: s.isAi })),
       paused: this.paused,
@@ -790,6 +793,19 @@ export class RoomManager {
       return { ok: false, error: 'Неизвестная сложность' };
     }
     const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount, undefined, difficulty);
+    const slot = room.addHuman(this.connName(connId), connId);
+    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    this.rooms.set(room.id, room);
+    this.connToRoom.set(connId, room.id);
+    return room.start(connId);
+  }
+
+  createLoadTest(connId: number, aiCount: number): { ok: true } | { ok: false; error: string } {
+    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    if (![5, 10, 20, 30].includes(aiCount)) {
+      return { ok: false, error: 'Количество игроков должно быть 5, 10, 20 или 30' };
+    }
+    const room = new Room(this.nextRoomId++, randomCountryName(), 'round', aiCount + 1, true, aiCount, undefined, 'medium', true);
     const slot = room.addHuman(this.connName(connId), connId);
     if (slot === null) return { ok: false, error: 'Комната заполнена' };
     this.rooms.set(room.id, room);
