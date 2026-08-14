@@ -62,16 +62,6 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
     }
   }
 
-  const affordableNeutral = state.hexes
-    .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
-    .filter((hex) => terrainCost(hex.terrain) <= ai.points)
-    .filter((hex) => !hasPeacefulNeighbor(state, hex.q, hex.r, aiId))
-    .sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain));
-  if (affordableNeutral.length > 0) {
-    const hex = affordableNeutral[0];
-    return { type: 'capture', q: hex.q, r: hex.r };
-  }
-
   const enemyHexes = state.hexes.filter(
     (hex) =>
       hex.ownerId !== null &&
@@ -80,9 +70,33 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
       hasAdjacentOwner(state, hex.q, hex.r, aiId),
   );
   if (enemyHexes.length > 0) {
-    const hex = enemyHexes.sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain))[0];
+    // атака слабейшего соседнего врага: минимум клеток, при равенстве — минимум очков
+    const weakness = (ownerId: number) => {
+      const owner = state.players.find((p) => p.id === ownerId);
+      return { hexes: hexCount(state, ownerId), points: owner?.points ?? 0 };
+    };
+    const owners = [...new Set(enemyHexes.map((h) => h.ownerId as number))];
+    owners.sort((a, b) => {
+      const wa = weakness(a);
+      const wb = weakness(b);
+      return wa.hexes - wb.hexes || wa.points - wb.points;
+    });
+    const target = owners[0];
+    const hex = enemyHexes
+      .filter((h) => h.ownerId === target)
+      .sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain))[0];
     const cost = terrainCost(hex.terrain);
     if (ai.points >= cost) return { type: 'attack', q: hex.q, r: hex.r, points: cost };
+  }
+
+  const affordableNeutral = state.hexes
+    .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
+    .filter((hex) => terrainCost(hex.terrain) <= ai.points)
+    .filter((hex) => !hasPeacefulNeighbor(state, hex.q, hex.r, aiId))
+    .sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain));
+  if (affordableNeutral.length > 0) {
+    const hex = affordableNeutral[0];
+    return { type: 'capture', q: hex.q, r: hex.r };
   }
 
   return null;
