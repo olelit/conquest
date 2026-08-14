@@ -39,6 +39,7 @@ const contextMenu = ref<{
   relation: 'peace' | 'war' | 'alliance';
   pendingFromOwner: { kind: 'peace' | 'alliance' } | null;
 } | null>(null);
+const hexMapRef = ref<InstanceType<typeof HexMap> | null>(null);
 let suppressNextHexClick = false;
 const aiMapType = ref<MapType>('normal');
 const aiCount = ref(1);
@@ -202,8 +203,30 @@ function closeContextMenu(): void {
   contextMenu.value = null;
 }
 
-function onMenuKeydown(e: KeyboardEvent): void {
-  if (e.code === 'Escape') closeContextMenu();
+function onHotkey(e: KeyboardEvent): void {
+  if ((e.target as HTMLElement | null)?.closest('input, select, textarea')) return;
+  if (e.code === 'Escape') {
+    closeContextMenu();
+    burgerOpen.value = false;
+    return;
+  }
+  if (!room.value || !game.value) return;
+  if (e.code.startsWith('Digit')) {
+    const digit = Number(e.code.slice(5));
+    if (!Number.isNaN(digit)) {
+      army.value = digit === 0 ? 100 : digit * 10;
+    }
+    return;
+  }
+  if (e.code === 'Tab') {
+    e.preventDefault();
+    hexMapRef.value?.resetView();
+    return;
+  }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (showPause.value) onPause();
+  }
 }
 
 function onMenuMouseDown(): void {
@@ -305,7 +328,7 @@ onMounted(() => {
   client.connect();
   window.addEventListener('mousedown', onMenuMouseDown);
   window.addEventListener('click', onMenuClick);
-  window.addEventListener('keydown', onMenuKeydown);
+  window.addEventListener('keydown', onHotkey);
   window.addEventListener('blur', closeContextMenu);
   window.addEventListener('contextmenu', onMenuContextMenu);
   if (GOOGLE_CLIENT_ID) {
@@ -321,7 +344,7 @@ onBeforeUnmount(() => {
   client.close();
   window.removeEventListener('mousedown', onMenuMouseDown);
   window.removeEventListener('click', onMenuClick);
-  window.removeEventListener('keydown', onMenuKeydown);
+  window.removeEventListener('keydown', onHotkey);
   window.removeEventListener('blur', closeContextMenu);
   window.removeEventListener('contextmenu', onMenuContextMenu);
 });
@@ -456,7 +479,11 @@ onBeforeUnmount(() => {
         <div v-if="error" class="banner banner--error">{{ error }}</div>
         <Hud v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" />
         <FpsOverlay v-if="room.loadTest" />
+        <div v-if="room && game && !room.loadTest" class="hotkeys-hint">
+          1–9/0 — армия · Tab — карта · Пробел — пауза
+        </div>
         <HexMap
+          ref="hexMapRef"
           v-if="game"
           :hexes="game.hexes"
           :players="game.players"
@@ -511,6 +538,20 @@ onBeforeUnmount(() => {
 .game-screen {
   position: fixed;
   inset: 0;
+}
+
+.hotkeys-hint {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 15;
+  color: #666;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  padding: 4px 10px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .app__header {

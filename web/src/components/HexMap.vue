@@ -186,6 +186,12 @@ function panStep(now: number): void {
   panRaf = requestAnimationFrame(panStep);
 }
 
+function resetView(): void {
+  view.value = null;
+}
+
+defineExpose({ resetView });
+
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
