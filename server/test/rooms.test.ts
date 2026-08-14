@@ -719,4 +719,16 @@ describe('Room: крепость', () => {
     const after = room.view(1).game!.players[0].limit;
     expect(after).toBe(before! - 100);
   });
+  it('ИИ строит крепость через тик', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    for (let i = 0; i < 15; i++) g.hexes[i].ownerId = 2;
+    g.players[1].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[15].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[15].q, r: g.hexes[15].r };
+    room.tick();
+    expect(g.hexes.some((h) => h.fortress)).toBe(true);
+  });
 });

@@ -123,4 +123,15 @@ describe('chooseAiAction', () => {
     const hex = s.hexes.find((h) => h.q === action.q && h.r === action.r)!;
     expect(hex.terrain).not.toBe('water');
   });
+  it('строит крепость при свободном слоте и приграничном гексе', () => {
+    const hexes: Partial<HexState>[] = [];
+    for (let i = 0; i < 15; i++) hexes.push({ q: i, r: 5, ownerId: AI });
+    hexes.push({ q: 15, r: 5, ownerId: P });
+    const s = makeState(hexes, 1000, 1000);
+    const action = chooseAiAction(s, AI);
+    expect(action!.type).toBe('build-fortress');
+    const q = (action as { q: number }).q;
+    expect(q).toBe(14);
+    expect(s.hexes.find((h) => h.q === q && h.r === 5)!.ownerId).toBe(AI);
+  });
 });

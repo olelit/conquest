@@ -1,9 +1,22 @@
-import { findHex, hasAdjacentOwner, hasPeacefulNeighbor, hexCount, relation, terrainCost, type GameState } from './rules.js';
+import {
+  findHex,
+  fortressCount,
+  fortressLimit,
+  hasAdjacentOwner,
+  hasPeacefulNeighbor,
+  hexCount,
+  isAdjacent,
+  pointLimit,
+  relation,
+  terrainCost,
+  type GameState,
+} from './rules.js';
 
 export type AiAction =
   | { type: 'defend'; q: number; r: number; points: number }
   | { type: 'capture'; q: number; r: number }
-  | { type: 'attack'; q: number; r: number; points: number };
+  | { type: 'attack'; q: number; r: number; points: number }
+  | { type: 'build-fortress'; q: number; r: number };
 
 export function chooseAiAction(state: GameState, aiId: number): AiAction | null {
   const ai = state.players.find((p) => p.id === aiId);
@@ -31,6 +44,21 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
     if (hex.attackInvestment <= hex.defenseInvestment) {
       const invest = Math.min(ai.points, hex.defenseInvestment - hex.attackInvestment + 1);
       if (invest >= 1) return { type: 'attack', q: hex.q, r: hex.r, points: invest };
+    }
+  }
+
+  // крепость: свободный слот, запас лимита и приграничный гекс
+  if (fortressCount(state, aiId) < fortressLimit(hexCount(state, aiId))) {
+    const count = hexCount(state, aiId);
+    if (ai.points <= pointLimit(count, fortressCount(state, aiId) + 1)) {
+      const borderHex = state.hexes.find(
+        (h) =>
+          h.ownerId === aiId &&
+          !h.fortress &&
+          h.attackerId === null &&
+          state.hexes.some((n) => n.ownerId !== null && n.ownerId !== aiId && isAdjacent(h, n)),
+      );
+      if (borderHex) return { type: 'build-fortress', q: borderHex.q, r: borderHex.r };
     }
   }
 

@@ -671,6 +671,12 @@ export class Room {
           this.recordReaction(playerId, action.q, action.r, Date.now());
         }
         break;
+      case 'build-fortress':
+        if (rules.validateBuildFortress(state, playerId, action.q, action.r).ok) {
+          rules.buildFortress(state, playerId, action.q, action.r);
+          this.addLog(`${name} построил крепость на (${action.q}, ${action.r})`);
+        }
+        break;
     }
   }
 
