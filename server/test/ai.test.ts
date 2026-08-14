@@ -138,9 +138,9 @@ describe('chooseAiAction', () => {
     const s = makeState([
       { q: 5, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P },
+      { q: 6, r: 4, ownerId: 3 },
+      { q: 7, r: 4, ownerId: 3 },
       { q: 7, r: 5, ownerId: 3 },
-      { q: 8, r: 5, ownerId: 3 },
-      { q: 8, r: 4, ownerId: 3 },
     ], 1000, 1000);
     s.players.push({ id: 3, points: 1000 });
     declareWar(s, AI, P);
@@ -151,7 +151,7 @@ describe('chooseAiAction', () => {
     const s = makeState([
       { q: 5, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P },
-      { q: 7, r: 5, ownerId: 3 },
+      { q: 6, r: 4, ownerId: 3 },
     ], 1000, 500);
     s.players.push({ id: 3, points: 1000 });
     declareWar(s, AI, P);
@@ -162,14 +162,14 @@ describe('chooseAiAction', () => {
     const s = makeState([
       { q: 5, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P, terrain: 'forest' },
-      { q: 6, r: 4, ownerId: P, terrain: 'grass' },
+      { q: 5, r: 4, ownerId: P, terrain: 'grass' },
+      { q: 6, r: 4, ownerId: 3 },
+      { q: 7, r: 4, ownerId: 3 },
       { q: 7, r: 5, ownerId: 3 },
-      { q: 8, r: 5, ownerId: 3 },
-      { q: 8, r: 4, ownerId: 3 },
     ], 1000, 1000);
     s.players.push({ id: 3, points: 1000 });
     declareWar(s, AI, P);
     declareWar(s, AI, 3);
-    expect(chooseAiAction(s, AI)).toEqual({ type: 'attack', q: 6, r: 4, points: 150 });
+    expect(chooseAiAction(s, AI)).toEqual({ type: 'attack', q: 5, r: 4, points: 150 });
   });
 });
