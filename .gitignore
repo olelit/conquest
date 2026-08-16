@@ -4,3 +4,6 @@ dist/
 .DS_Store
 .superpowers/
 server/stats/
+memory/neo4j-data/
+memory/neo4j-logs/
+
