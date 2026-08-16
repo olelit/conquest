@@ -18,6 +18,7 @@ interface WsMessage {
   aiCount?: number;
   roomId?: number;
   difficulty?: string;
+  training?: boolean;
 }
 
 export function attachWs(server: Server, manager: RoomManager): () => void {
@@ -58,11 +59,11 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
       try {
         msg = JSON.parse(raw.toString());
       } catch {
-        sendError(ws, 'Некорректный JSON');
+        sendError(ws, 'Invalid JSON');
         return;
       }
       if (typeof msg !== 'object' || msg === null || Array.isArray(msg)) {
-        sendError(ws, 'Некорректное сообщение');
+        sendError(ws, 'Invalid message');
         return;
       }
       const message = msg as WsMessage;
@@ -73,7 +74,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             if (result.ok) {
               broadcast();
             } else {
-              sendError(ws, result.error ?? 'Ошибка входа');
+              sendError(ws, result.error ?? 'Login error');
             }
             return;
           }
@@ -83,7 +84,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             broadcast();
             return;
           case 'start-solo': {
-            const result = manager.createSolo(connId, String(message.mapType ?? '') as MapType, Number(message.aiCount), (message.difficulty ?? 'medium') as Difficulty);
+            const result = manager.createSolo(connId, String(message.mapType ?? '') as MapType, Number(message.aiCount), (message.difficulty ?? 'medium') as Difficulty, Boolean(message.training));
             if (result.ok) broadcast();
             else sendError(ws, result.error);
             return;
@@ -137,7 +138,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
         }
       } catch (err) {
         console.error('ws handler failed:', err);
-        sendError(ws, 'Ошибка сервера');
+        sendError(ws, 'Server error');
       }
     });
 

@@ -7,7 +7,7 @@ function number(name: string, fallback: number): number {
   if (raw === undefined || raw === '') return fallback;
   const value = Number(raw);
   if (Number.isFinite(value)) return value;
-  console.warn(`Некорректный конфиг ${name}=${raw}, использую ${fallback}`);
+  console.warn(`Invalid config ${name}=${raw}, using ${fallback}`);
   return fallback;
 }
 

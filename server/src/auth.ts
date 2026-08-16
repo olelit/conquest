@@ -69,5 +69,5 @@ export async function verifyGoogleIdToken(
   const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', cryptoKey, signature, data);
   if (!valid) return null;
 
-  return { sub: payload.sub, email: payload.email ?? '', name: payload.name ?? payload.email ?? 'Игрок' };
+  return { sub: payload.sub, email: payload.email ?? '', name: payload.name ?? payload.email ?? 'Player' };
 }

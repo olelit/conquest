@@ -124,91 +124,91 @@ function isValidPoints(points: unknown): points is number {
 export type ActionValidation = { ok: true } | { ok: false; error: string };
 
 export function validateCapture(state: GameState, playerId: number, q: number, r: number, army = 0): ActionValidation {
-  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
+  if (hasGameWinner(state)) return { ok: false, error: 'Game over' };
   const hex = findHex(state, q, r);
-  if (!hex) return { ok: false, error: 'Гекс не найден' };
-  if (hex.ownerId !== null) return { ok: false, error: 'Гекс уже занят' };
-  if (hex.attackerId !== null) return { ok: false, error: 'За гекс уже идёт борьба' };
+  if (!hex) return { ok: false, error: 'Hex not found' };
+  if (hex.ownerId !== null) return { ok: false, error: 'Hex is already occupied' };
+  if (hex.attackerId !== null) return { ok: false, error: 'There is already a fight for this hex' };
   const player = state.players.find((p) => p.id === playerId);
-  if (!player) return { ok: false, error: 'Игрок не найден' };
-  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
+  if (!player) return { ok: false, error: 'Player not found' };
+  if (player.eliminated) return { ok: false, error: 'You are out of the game' };
   const count = hexCount(state, playerId);
   if (count === 0) {
-    if (hex.terrain === 'water') return { ok: false, error: 'Первый гекс не может быть на воде' };
+    if (hex.terrain === 'water') return { ok: false, error: 'The first hex cannot be on water' };
     if (hasAdjacentOtherOwner(state, q, r, playerId) && player.points - army < terrainCost(hex.terrain)) {
-      return { ok: false, error: 'Не хватает очков для битвы у границы врага' };
+      return { ok: false, error: 'Not enough points for a battle at the enemy border' };
     }
     if (hasPeacefulNeighbor(state, q, r, playerId)) {
-      return { ok: false, error: 'Нужно объявить войну соседнему игроку' };
+      return { ok: false, error: 'Declare war on the neighboring player first' };
     }
     return { ok: true };
   }
-  if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
-  if (player.points - army < terrainCost(hex.terrain)) return { ok: false, error: 'Не хватает очков (часть занята армией)' };
+  if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Hex is not adjacent' };
+  if (player.points - army < terrainCost(hex.terrain)) return { ok: false, error: 'Not enough points (part is reserved by the army)' };
   if (hasPeacefulNeighbor(state, q, r, playerId)) {
-    return { ok: false, error: 'Нужно объявить войну соседнему игроку' };
+    return { ok: false, error: 'Declare war on the neighboring player first' };
   }
   return { ok: true };
 }
 
 export function validateAttack(state: GameState, playerId: number, q: number, r: number, points: number): ActionValidation {
-  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
-  if (!isValidPoints(points)) return { ok: false, error: 'Вложение должно быть целым числом ≥ 1' };
+  if (hasGameWinner(state)) return { ok: false, error: 'Game over' };
+  if (!isValidPoints(points)) return { ok: false, error: 'Investment must be an integer ≥ 1' };
   const hex = findHex(state, q, r);
-  if (!hex) return { ok: false, error: 'Гекс не найден' };
-  if (hex.ownerId !== null && hex.ownerId === playerId) return { ok: false, error: 'Нельзя атаковать свой гекс' };
+  if (!hex) return { ok: false, error: 'Hex not found' };
+  if (hex.ownerId !== null && hex.ownerId === playerId) return { ok: false, error: 'Cannot attack your own hex' };
   if (hex.ownerId !== null && hex.ownerId !== playerId && relation(state, playerId, hex.ownerId) !== 'war') {
-    return { ok: false, error: 'Нужно объявить войну' };
+    return { ok: false, error: 'Declare war first' };
   }
-  if (hex.ownerId === null && hex.attackerId !== playerId) return { ok: false, error: 'Нейтральный гекс захватывается, а не атакуется' };
-  if (hex.attackerId !== null && hex.attackerId !== playerId) return { ok: false, error: 'Битву уже ведёт соперник' };
-  if (hex.attackerId !== playerId && !hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
+  if (hex.ownerId === null && hex.attackerId !== playerId) return { ok: false, error: 'Neutral hexes are captured, not attacked' };
+  if (hex.attackerId !== null && hex.attackerId !== playerId) return { ok: false, error: 'The opponent is already fighting for this hex' };
+  if (hex.attackerId !== playerId && !hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Hex is not adjacent' };
   if (hex.attackerId !== playerId && points < terrainCost(hex.terrain)) {
-    return { ok: false, error: 'Минимальное вложение в атаку — стоимость гекса' };
+    return { ok: false, error: 'Minimum investment in an attack is the hex cost' };
   }
   const player = state.players.find((p) => p.id === playerId);
-  if (!player) return { ok: false, error: 'Игрок не найден' };
-  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
-  if (player.points < points) return { ok: false, error: 'Не хватает очков' };
+  if (!player) return { ok: false, error: 'Player not found' };
+  if (player.eliminated) return { ok: false, error: 'You are out of the game' };
+  if (player.points < points) return { ok: false, error: 'Not enough points' };
   return { ok: true };
 }
 
 export function validateDefend(state: GameState, playerId: number, q: number, r: number, points: number): ActionValidation {
-  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
-  if (!isValidPoints(points)) return { ok: false, error: 'Вложение должно быть целым числом ≥ 1' };
+  if (hasGameWinner(state)) return { ok: false, error: 'Game over' };
+  if (!isValidPoints(points)) return { ok: false, error: 'Investment must be an integer ≥ 1' };
   const hex = findHex(state, q, r);
-  if (!hex) return { ok: false, error: 'Гекс не найден' };
-  if (hex.attackerId === null) return { ok: false, error: 'Битвы нет' };
-  if (hex.attackerId === playerId) return { ok: false, error: 'Нельзя защищать свою же атаку' };
+  if (!hex) return { ok: false, error: 'Hex not found' };
+  if (hex.attackerId === null) return { ok: false, error: 'There is no battle here' };
+  if (hex.attackerId === playerId) return { ok: false, error: 'Cannot defend your own attack' };
   if (hex.ownerId === playerId) {
     // владелец защищает свой гекс
   } else if (hex.ownerId === null) {
-    if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Гекс не соседний' };
+    if (!hasAdjacentOwner(state, q, r, playerId)) return { ok: false, error: 'Hex is not adjacent' };
   } else {
-    return { ok: false, error: 'Гекс принадлежит другому' };
+    return { ok: false, error: 'Hex belongs to someone else' };
   }
   const player = state.players.find((p) => p.id === playerId);
-  if (!player) return { ok: false, error: 'Игрок не найден' };
-  if (player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
-  if (player.points < points) return { ok: false, error: 'Не хватает очков' };
+  if (!player) return { ok: false, error: 'Player not found' };
+  if (player.eliminated) return { ok: false, error: 'You are out of the game' };
+  if (player.points < points) return { ok: false, error: 'Not enough points' };
   return { ok: true };
 }
 
 export function validateBuildFortress(state: GameState, playerId: number, q: number, r: number): ActionValidation {
-  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
+  if (hasGameWinner(state)) return { ok: false, error: 'Game over' };
   const hex = findHex(state, q, r);
-  if (!hex) return { ok: false, error: 'Гекс не найден' };
-  if (hex.ownerId !== playerId) return { ok: false, error: 'Это не ваш гекс' };
-  if (hex.attackerId !== null) return { ok: false, error: 'За гекс идёт битва' };
-  if (hex.fortress) return { ok: false, error: 'Здесь уже есть крепость' };
+  if (!hex) return { ok: false, error: 'Hex not found' };
+  if (hex.ownerId !== playerId) return { ok: false, error: 'This is not your hex' };
+  if (hex.attackerId !== null) return { ok: false, error: 'There is a battle for this hex' };
+  if (hex.fortress) return { ok: false, error: 'A fortress already exists here' };
   const player = state.players.find((p) => p.id === playerId);
-  if (!player || player.eliminated) return { ok: false, error: 'Вы выбыли из игры' };
+  if (!player || player.eliminated) return { ok: false, error: 'You are out of the game' };
   const count = hexCount(state, playerId);
   if (fortressCount(state, playerId) >= fortressLimit(count)) {
-    return { ok: false, error: 'Достигнут лимит крепостей' };
+    return { ok: false, error: 'Fortress limit reached' };
   }
   if (player.points > pointLimit(count, fortressCount(state, playerId) + 1)) {
-    return { ok: false, error: 'Сначала потратьте очки: крепость уменьшает лимит' };
+    return { ok: false, error: 'Spend points first: a fortress lowers the limit' };
   }
   return { ok: true };
 }
@@ -219,10 +219,10 @@ export function buildFortress(state: GameState, playerId: number, q: number, r: 
 }
 
 export function validateRemoveFortress(state: GameState, playerId: number, q: number, r: number): ActionValidation {
-  if (hasGameWinner(state)) return { ok: false, error: 'Игра окончена' };
+  if (hasGameWinner(state)) return { ok: false, error: 'Game over' };
   const hex = findHex(state, q, r);
-  if (!hex) return { ok: false, error: 'Гекс не найден' };
-  if (hex.ownerId !== playerId || !hex.fortress) return { ok: false, error: 'Здесь нет вашей крепости' };
+  if (!hex) return { ok: false, error: 'Hex not found' };
+  if (hex.ownerId !== playerId || !hex.fortress) return { ok: false, error: 'There is no fortress of yours here' };
   return { ok: true };
 }
 

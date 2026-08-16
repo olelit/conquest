@@ -520,7 +520,7 @@ describe('Room: дипломатия', () => {
     expect(result.type).toBe('state');
     expect(rules.relation(g, 1, 2)).toBe('war');
     expect(rules.relation(g, 1, 3)).toBe('war');
-    expect(room.view(1).log.some((l) => l.includes('объявил войну'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.includes('declared war'))).toBe(true);
   });
   it('предложение мира: ИИ принимает при равенстве сил', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
@@ -567,7 +567,7 @@ describe('Room: дипломатия', () => {
     g.hexes[1].ownerId = ai.id;
     g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
     const aiHex = g.hexes.find((h) => h.ownerId === ai.id)!;
-    // ИИ предлагает союз человеку (через handleAction от имени ИИ нельзя — создаём напрямую)
+    // ИИ proposes an alliance to человеку (через handleAction от имени ИИ нельзя — создаём напрямую)
     room['pendingProposals'] = [{ from: ai.id, to: 1, kind: 'alliance' }];
     const result = room.handleAction(1, 'respond-proposal', { q: aiHex.q, r: aiHex.r, accept: true });
     expect(result.type).toBe('state');
@@ -685,7 +685,7 @@ describe('Room: дипломатия', () => {
     const ai = room.gameState!.players.find((p) => p.isAi)!;
     room['pendingProposals'] = [{ from: ai.id, to: 1, kind: 'alliance' }];
     const proposals = room.view(1).game!.pendingProposals;
-    expect(proposals).toEqual([{ from: ai.id, kind: 'alliance' }]);
+    expect(proposals).toEqual([{ from: ai.id, to: 1, kind: 'alliance' }]);
   });
 });
 
@@ -701,11 +701,11 @@ describe('Room: крепость', () => {
     const build = room.handleAction(1, 'build-fortress', { q: hex.q, r: hex.r });
     expect(build.type).toBe('state');
     expect(hex.fortress).toBe(true);
-    expect(room.view(1).log.some((l) => l.includes('построил крепость'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.includes('built a fortress'))).toBe(true);
     const remove = room.handleAction(1, 'remove-fortress', { q: hex.q, r: hex.r });
     expect(remove.type).toBe('state');
     expect(hex.fortress).toBe(false);
-    expect(room.view(1).log.some((l) => l.includes('снёс крепость'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.includes('removed a fortress'))).toBe(true);
   });
   it('view: лимит уменьшен на 100 за крепость', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
@@ -746,5 +746,39 @@ describe('RoomManager: нагрузочный тест', () => {
     const m = new RoomManager();
     expect(m.createLoadTest(1, 7).ok).toBe(false);
     expect(m.createLoadTest(1, 100).ok).toBe(false);
+  });
+});
+
+describe('Room: обучение', () => {
+  it('createSolo(training): лёгкий ИИ и флаг training в view', () => {
+    const m = new RoomManager();
+    const res = m.createSolo(1, 'normal', 1, 'hard', true);
+    expect(res.ok).toBe(true);
+    const room = m.roomForConn(1)!;
+    expect(room.difficulty).toBe('easy');
+    expect(room.view().training).toBe(true);
+  });
+  it('createSolo без training: сложность сохраняется', () => {
+    const m = new RoomManager();
+    expect(m.createSolo(1, 'normal', 1, 'hard').ok).toBe(true);
+    expect(m.roomForConn(1)!.difficulty).toBe('hard');
+    expect(m.roomForConn(1)!.view().training).toBe(false);
+  });
+  it('view().game.pendingProposals: включает исходящие предложения игрока', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[1].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    const hex = g.hexes.find((h) => h.ownerId === ai.id)!;
+    rules.declareWar(g, 1, ai.id);
+    room.handleAction(1, 'propose', { q: hex.q, r: hex.r, kind: 'peace' });
+    const proposal = room.view(1).game!.pendingProposals.find((p) => p.from === 1);
+    expect(proposal).toBeDefined();
+    expect(proposal!.to).toBe(ai.id);
   });
 });

@@ -35,7 +35,7 @@ export interface ViewGame {
   hexes: HexState[];
   winnerId: number | null;
   captureTicks: number;
-  pendingProposals: { from: number; kind: 'peace' | 'alliance' }[];
+  pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[];
 }
 
 export interface RoomView {
@@ -46,6 +46,7 @@ export interface RoomView {
   status: RoomStatus;
   aiMode: boolean;
   loadTest: boolean;
+  training: boolean;
   hostPlayerId: number | null;
   slots: { id: number; name: string; isAi: boolean }[];
   paused: boolean;
@@ -96,6 +97,7 @@ export class Room {
     private readonly rng: () => number = Math.random,
     readonly difficulty: Difficulty = 'medium',
     readonly loadTest = false,
+    readonly training = false,
   ) {
     this.stats = new GameStatsRecorder(this.id);
   }
@@ -122,7 +124,7 @@ export class Room {
     this.slots.push({ id, name, isAi: false, connId, disconnected: false });
     this.connToSlot.set(connId, id);
     if (this.hostPlayerId === null) this.hostPlayerId = id;
-    this.addLog(`${name} присоединился к комнате`);
+    this.addLog(`${name} joined the room`);
     return id;
   }
 
@@ -136,7 +138,7 @@ export class Room {
     this.connToSlot.delete(connId);
     const slot = this.slots.find((s) => s.id === id);
     if (!slot) return;
-    this.addLog(`${slot.name} вышел из комнаты`);
+    this.addLog(`${slot.name} left the room`);
     this.slots = this.slots.filter((s) => s.id !== id);
     if (this.hostPlayerId === id) {
       const next = this.slots.find((s) => !s.isAi);
@@ -145,10 +147,10 @@ export class Room {
   }
 
   start(connId: number): { ok: true } | { ok: false; error: string } {
-    if (this.status !== 'waiting') return { ok: false, error: 'Игра уже началась' };
-    if (this.hostPlayerId === null) return { ok: false, error: 'Нет хозяина' };
+    if (this.status !== 'waiting') return { ok: false, error: 'The game has already started' };
+    if (this.hostPlayerId === null) return { ok: false, error: 'There is no host' };
     if (this.slotForConn(connId) !== this.hostPlayerId) {
-      return { ok: false, error: 'Только хозяин может начать игру' };
+      return { ok: false, error: 'Only the host can start the game' };
     }
     const aiToAdd = this.aiMode ? this.aiCount : this.maxPlayers - this.slots.length;
     const usedNames = new Set(this.slots.map((s) => s.name));
@@ -170,7 +172,7 @@ export class Room {
     this.status = 'playing';
     this.paused = false;
     this.lastCapturerId = null;
-    this.addLog('Новая игра началась');
+    this.addLog('New game started');
     this.startedAt = Date.now();
     this.statsWritten = false;
     this.tickCounter = 0;
@@ -180,7 +182,7 @@ export class Room {
       mapType: this.mapType,
       players: players.map((p) => ({
         id: p.id,
-        name: p.name ?? `Игрок ${p.id}`,
+        name: p.name ?? `Player ${p.id}`,
         isAi: p.isAi ?? false,
         incomeMultiplier: p.incomeMultiplier ?? 1,
       })),
@@ -214,8 +216,8 @@ export class Room {
   }
 
   restart(): { ok: true } | { ok: false; error: string } {
-    if (!this.aiMode) return { ok: false, error: 'Перезапуск доступен только в игре с компьютером' };
-    if (this.status !== 'playing' || !this.state) return { ok: false, error: 'Игра ещё не началась' };
+    if (!this.aiMode) return { ok: false, error: 'Restart is only available in games with the computer' };
+    if (this.status !== 'playing' || !this.state) return { ok: false, error: 'The game has not started yet' };
     this.slots = this.slots.filter((s) => !this.eliminationSpawned.has(s.id));
     const players = this.buildPlayers();
     const preset = MAP_PRESETS[this.mapType];
@@ -240,12 +242,12 @@ export class Room {
       mapType: this.mapType,
       players: players.map((p) => ({
         id: p.id,
-        name: p.name ?? `Игрок ${p.id}`,
+        name: p.name ?? `Player ${p.id}`,
         isAi: p.isAi ?? false,
         incomeMultiplier: p.incomeMultiplier ?? 1,
       })),
     });
-    this.addLog('Игра перезапущена');
+    this.addLog('Game restarted');
     return { ok: true };
   }
 
@@ -275,9 +277,9 @@ export class Room {
       this.stats.record({ type: 'battle', t: Date.now(), q: result.q, r: result.r, winnerId: result.winnerId });
       this.attackStartedAt.delete(`${result.q},${result.r}`);
       if (result.winnerId === null) {
-        this.addLog(`Битва за (${result.q}, ${result.r}) окончена — ничья`);
+        this.addLog(`Battle for (${result.q}, ${result.r}) ended — draw`);
       } else {
-        this.addLog(`Битва за (${result.q}, ${result.r}) окончена — победил ${this.playerName(result.winnerId)}`);
+        this.addLog(`Battle for (${result.q}, ${result.r}) ended — ${this.playerName(result.winnerId)} won`);
       }
     }
     for (const result of results) {
@@ -292,7 +294,7 @@ export class Room {
     }
     const claims = rules.applyEnclosure(state);
     for (const claim of claims) {
-      this.addLog(`${this.playerName(claim.ownerId)} окружил и захватил ${claim.hexes.length} клеток`);
+      this.addLog(`${this.playerName(claim.ownerId)} surrounded and captured ${claim.hexes.length} hexes`);
     }
     for (const claim of claims) {
       if (claim.prevOwnerId !== null) this.handlePlayerLoss(claim.prevOwnerId);
@@ -337,9 +339,9 @@ export class Room {
           } else {
             rules.makeAlliance(state, aiPlayer.id, proposal.from);
           }
-          this.addLog(`${this.playerName(aiPlayer.id)} и ${this.playerName(proposal.from)} заключили ${proposal.kind === 'peace' ? 'мир' : 'союз'}`);
+          this.addLog(`${this.playerName(aiPlayer.id)} and ${this.playerName(proposal.from)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`);
         } else {
-          this.addLog(`${this.playerName(aiPlayer.id)} отклонил предложение ${this.playerName(proposal.from)}`);
+          this.addLog(`${this.playerName(aiPlayer.id)} declined the proposal of ${this.playerName(proposal.from)}`);
         }
       }
     }
@@ -395,7 +397,7 @@ export class Room {
       const targetSide = target.isAi ? sideStrength(target.id) : { hexes: this.scoutCache?.hexCount ?? 0, points: this.scoutCache?.points ?? 0 };
       if (aiSide.hexes > targetSide.hexes || aiSide.points > targetSide.points) {
         rules.declareWar(state, aiId, target.id);
-        this.addLog(`${this.playerName(aiId)} объявил войну ${this.playerName(target.id)}`);
+        this.addLog(`${this.playerName(aiId)} declared war on ${this.playerName(target.id)}`);
       }
     }
   }
@@ -410,9 +412,9 @@ export class Room {
           this.peaceCooldowns.delete(key);
         }
       }
-      this.addLog(`${this.playerName(elim.eliminatedId)} потерял столицу и выбыл из игры`);
+      this.addLog(`${this.playerName(elim.eliminatedId)} lost the capital and left the game`);
       if (elim.neutralHexes.length > 0) {
-        this.addLog(`Территория ${this.playerName(elim.eliminatedId)} стала нейтральной`);
+        this.addLog(`${this.playerName(elim.eliminatedId)}'s territory became neutral`);
       }
       if (elim.newAis.length > 0) {
         const usedNames = new Set(this.slots.map((s) => s.name));
@@ -431,7 +433,7 @@ export class Room {
           this.slots.push({ id: ai.id, name, isAi: true, connId: null, disconnected: false });
           this.eliminationSpawned.add(ai.id);
         }
-        this.addLog(`Территория ${this.playerName(elim.eliminatedId)} разделена между: ${names.join(', ')}`);
+        this.addLog(`${this.playerName(elim.eliminatedId)}'s territory is divided between: ${names.join(', ')}`);
       }
       if (this.aiMode) {
         const human = this.slots.find((s) => s.connId !== null);
@@ -443,7 +445,7 @@ export class Room {
     } else {
       const cut = rules.applyCut(state, playerId);
       if (cut.length > 0) {
-        this.addLog(`${this.playerName(playerId)} отрезан: ${cut.length} клеток стали нейтральными`);
+        this.addLog(`${this.playerName(playerId)} was cut off: ${cut.length} hexes became neutral`);
       }
     }
   }
@@ -451,14 +453,14 @@ export class Room {
   handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean }): ActionResult {
     const playerId = this.slotForConn(connId);
     if (type === 'pause') {
-      if (!this.aiMode) return { type: 'error', message: 'В игре с людьми пауза недоступна' };
+      if (!this.aiMode) return { type: 'error', message: 'Pause is not available in human games' };
       if (this.status === 'playing') this.paused = !this.paused;
       return { type: 'state' };
     }
-    if (playerId === null) return { type: 'error', message: 'Вы не в этой комнате' };
-    if (this.status !== 'playing' || !this.state) return { type: 'error', message: 'Игра ещё не началась' };
+    if (playerId === null) return { type: 'error', message: "You're not in this room" };
+    if (this.status !== 'playing' || !this.state) return { type: 'error', message: 'The game has not started yet' };
     if (typeof msg.q !== 'number' || typeof msg.r !== 'number') {
-      return { type: 'error', message: 'Некорректные координаты' };
+      return { type: 'error', message: 'Invalid coordinates' };
     }
     let validation: rules.ActionValidation;
     switch (type) {
@@ -473,7 +475,7 @@ export class Room {
         validation = rules.validateAttack(this.state, playerId, msg.q, msg.r, Number(msg.points));
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.applyAttack(this.state, playerId, msg.q, msg.r, Number(msg.points));
-        this.addLog(`${this.playerName(playerId)} вложил ${Number(msg.points)} очков в атаку на (${msg.q}, ${msg.r})`);
+        this.addLog(`${this.playerName(playerId)} invested ${Number(msg.points)} points in an attack on (${msg.q}, ${msg.r})`);
         this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'attack', q: msg.q, r: msg.r });
         this.noteAttack(msg.q, msg.r, Date.now());
         return { type: 'state' };
@@ -482,7 +484,7 @@ export class Room {
         validation = rules.validateDefend(this.state, playerId, msg.q, msg.r, Number(msg.points));
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.applyDefend(this.state, playerId, msg.q, msg.r, Number(msg.points));
-        this.addLog(`${this.playerName(playerId)} защищает (${msg.q}, ${msg.r}): +${Number(msg.points)}`);
+        this.addLog(`${this.playerName(playerId)} is defending (${msg.q}, ${msg.r}): +${Number(msg.points)}`);
         this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'defend', q: msg.q, r: msg.r });
         this.recordReaction(playerId, msg.q, msg.r, Date.now());
         return { type: 'state' };
@@ -491,60 +493,60 @@ export class Room {
         validation = rules.validateBuildFortress(this.state, playerId, msg.q, msg.r);
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.buildFortress(this.state, playerId, msg.q, msg.r);
-        this.addLog(`${this.playerName(playerId)} построил крепость на (${msg.q}, ${msg.r})`);
+        this.addLog(`${this.playerName(playerId)} built a fortress on (${msg.q}, ${msg.r})`);
         return { type: 'state' };
       }
       case 'remove-fortress': {
         validation = rules.validateRemoveFortress(this.state, playerId, msg.q, msg.r);
         if (!validation.ok) return { type: 'error', message: validation.error };
         rules.removeFortress(this.state, playerId, msg.q, msg.r);
-        this.addLog(`${this.playerName(playerId)} снёс крепость на (${msg.q}, ${msg.r})`);
+        this.addLog(`${this.playerName(playerId)} removed a fortress on (${msg.q}, ${msg.r})`);
         return { type: 'state' };
       }
       case 'declare-war': {
         const target = this.targetPlayerId(playerId, msg);
-        if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        if (target === null) return { type: 'error', message: 'Hex owner not found' };
         if (rules.relation(this.state!, playerId, target) === 'war') {
-          return { type: 'error', message: 'Уже в войне' };
+          return { type: 'error', message: 'Already at war' };
         }
         rules.declareWar(this.state, playerId, target);
-        this.addLog(`${this.playerName(playerId)} объявил войну ${this.playerName(target)}`);
+        this.addLog(`${this.playerName(playerId)} declared war on ${this.playerName(target)}`);
         return { type: 'state' };
       }
       case 'propose': {
         const target = this.targetPlayerId(playerId, msg);
-        if (target === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        if (target === null) return { type: 'error', message: 'Hex owner not found' };
         const kind = msg.kind;
-        if (kind !== 'peace' && kind !== 'alliance') return { type: 'error', message: 'Неизвестный тип предложения' };
+        if (kind !== 'peace' && kind !== 'alliance') return { type: 'error', message: 'Unknown proposal type' };
         const rel = rules.relation(this.state!, playerId, target);
-        if (kind === 'peace' && rel !== 'war') return { type: 'error', message: 'Мир можно предложить только во время войны' };
+        if (kind === 'peace' && rel !== 'war') return { type: 'error', message: 'Peace can only be proposed during a war' };
         if (kind === 'alliance' && (rel === 'alliance' || rel === 'war')) {
-          return { type: 'error', message: 'Союз невозможен при текущих отношениях' };
+          return { type: 'error', message: 'Alliance is not possible with current relations' };
         }
         if (this.pendingProposals.some((p) => p.from === playerId && p.to === target && p.kind === kind)) {
-          return { type: 'error', message: 'Предложение уже отправлено' };
+          return { type: 'error', message: 'Proposal already sent' };
         }
         this.pendingProposals.push({ from: playerId, to: target, kind });
-        this.addLog(`${this.playerName(playerId)} предлагает ${kind === 'peace' ? 'мир' : 'союз'} ${this.playerName(target)}`);
+        this.addLog(`${this.playerName(playerId)} proposes ${kind === 'peace' ? 'peace' : 'an alliance'} to ${this.playerName(target)}`);
         return { type: 'state' };
       }
       case 'respond-proposal': {
         const proposer = this.targetPlayerId(playerId, msg);
-        if (proposer === null) return { type: 'error', message: 'Владелец гекса не найден' };
+        if (proposer === null) return { type: 'error', message: 'Hex owner not found' };
         const idx = this.pendingProposals.findIndex((p) => p.from === proposer && p.to === playerId);
-        if (idx === -1) return { type: 'error', message: 'Нет предложения от этого игрока' };
+        if (idx === -1) return { type: 'error', message: 'There is no proposal from this player' };
         const [proposal] = this.pendingProposals.splice(idx, 1);
         if (msg.accept) {
           if (proposal.kind === 'peace') rules.makePeace(this.state!, playerId, proposer);
           else rules.makeAlliance(this.state!, playerId, proposer);
-          this.addLog(`${this.playerName(playerId)} и ${this.playerName(proposer)} заключили ${proposal.kind === 'peace' ? 'мир' : 'союз'}`);
+          this.addLog(`${this.playerName(playerId)} and ${this.playerName(proposer)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`);
         } else {
-          this.addLog(`${this.playerName(playerId)} отклонил предложение ${this.playerName(proposer)}`);
+          this.addLog(`${this.playerName(playerId)} declined the proposal of ${this.playerName(proposer)}`);
         }
         return { type: 'state' };
       }
       default:
-        return { type: 'error', message: `Неизвестный тип сообщения: ${type}` };
+        return { type: 'error', message: `Unknown message type: ${type}` };
     }
   }
 
@@ -566,7 +568,7 @@ export class Room {
       player.isAi = true;
       player.incomeMultiplier = config.aiIncomeMultipliers[this.difficulty];
     }
-    this.addLog(`${slot.name} покинул игру — его место занял компьютер`);
+    this.addLog(`${slot.name} left the game — the computer took over`);
   }
 
   updateName(connId: number, name: string): void {
@@ -586,6 +588,7 @@ export class Room {
       status: this.status,
       aiMode: this.aiMode,
       loadTest: this.loadTest,
+      training: this.training,
       hostPlayerId: this.hostPlayerId,
       slots: this.slots.map((s) => ({ id: s.id, name: s.name, isAi: s.isAi })),
       paused: this.paused,
@@ -596,7 +599,7 @@ export class Room {
               const hidden = playerId !== null && rel === 'enemy';
               return {
                 id: p.id,
-                name: p.name ?? `Игрок ${p.id}`,
+                name: p.name ?? `Player ${p.id}`,
                 points: hidden ? null : p.points,
                 hexCount: rules.hexCount(state, p.id),
                 income: hidden ? null : rules.playerIncome(state, p.id),
@@ -610,7 +613,7 @@ export class Room {
             hexes: state.hexes,
             winnerId: state.winnerId,
             captureTicks: rules.CAPTURE_TICKS,
-            pendingProposals: playerId !== null ? this.pendingProposals.filter((p) => p.to === playerId).map((p) => ({ from: p.from, kind: p.kind })) : [],
+            pendingProposals: playerId !== null ? this.pendingProposals.filter((p) => p.to === playerId || p.from === playerId).map((p) => ({ from: p.from, to: p.to, kind: p.kind })) : [],
           }
         : null,
       log: this.log,
@@ -661,7 +664,7 @@ export class Room {
       case 'attack':
         if (rules.validateAttack(state, playerId, action.q, action.r, action.points).ok) {
           rules.applyAttack(state, playerId, action.q, action.r, action.points);
-          this.addLog(`${name} вложил ${action.points} очков в атаку на (${action.q}, ${action.r})`);
+          this.addLog(`${name} invested ${action.points} points in an attack on (${action.q}, ${action.r})`);
           this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'attack', q: action.q, r: action.r });
           this.noteAttack(action.q, action.r, Date.now());
         }
@@ -669,7 +672,7 @@ export class Room {
       case 'defend':
         if (rules.validateDefend(state, playerId, action.q, action.r, action.points).ok) {
           rules.applyDefend(state, playerId, action.q, action.r, action.points);
-          this.addLog(`${name} защищает (${action.q}, ${action.r}): +${action.points}`);
+          this.addLog(`${name} is defending (${action.q}, ${action.r}): +${action.points}`);
           this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'defend', q: action.q, r: action.r });
           this.recordReaction(playerId, action.q, action.r, Date.now());
         }
@@ -677,14 +680,14 @@ export class Room {
       case 'build-fortress':
         if (rules.validateBuildFortress(state, playerId, action.q, action.r).ok) {
           rules.buildFortress(state, playerId, action.q, action.r);
-          this.addLog(`${name} построил крепость на (${action.q}, ${action.r})`);
+          this.addLog(`${name} built a fortress on (${action.q}, ${action.r})`);
         }
         break;
     }
   }
 
   private playerName(playerId: number): string {
-    return this.slots.find((s) => s.id === playerId)?.name ?? `Игрок ${playerId}`;
+    return this.slots.find((s) => s.id === playerId)?.name ?? `Player ${playerId}`;
   }
 
   private targetPlayerId(playerId: number, msg: { q?: number; r?: number }): number | null {
@@ -700,12 +703,12 @@ export class Room {
 }
 
 const COUNTRY_PREFIXES = [
-  'Рейш', 'Аван', 'Вельд', 'Гросс', 'Карт', 'Торв', 'Эльд', 'Морх', 'Силв', 'Брейн',
-  'Ост', 'Драг', 'Кэл', 'Верд', 'Норд', 'Зарт', 'Квир', 'Хальт', 'Дорн', 'Фаст',
+  'Nord', 'Silv', 'Vald', 'Dorn', 'Karl', 'Torv', 'Eld', 'Mork', 'Brein', 'Ost',
+  'Drag', 'Kel', 'Gard', 'Hal', 'Vant', 'Zorn', 'Quir', 'Grau', 'Ald', 'Fast',
 ];
 const COUNTRY_SUFFIXES = [
-  'олия', 'столь', 'ландия', 'марк', 'ния', 'вия', 'гон', 'дер', 'стия', 'альд',
-  'мор', 'тия', 'вальд', 'гания',
+  'ia', 'land', 'mark', 'dor', 'nia', 'via', 'gon', 'ar', 'tia', 'shire',
+  'ley', 'mor', 'heim', 'stan',
 ];
 
 export function randomCountryName(): string {
@@ -753,72 +756,72 @@ export class RoomManager {
 
   async handleAuth(connId: number, token: string): Promise<{ ok: boolean; error?: string }> {
     const clientId = config.googleClientId;
-    if (!clientId) return { ok: false, error: 'Google-вход не настроен на сервере' };
-    if (!token) return { ok: false, error: 'Пустой токен' };
+    if (!clientId) return { ok: false, error: 'Google sign-in is not configured on the server' };
+    if (!token) return { ok: false, error: 'Empty token' };
     try {
       const profile = await verifyGoogleIdToken(token, clientId);
-      if (!profile) return { ok: false, error: 'Не удалось проверить токен Google' };
+      if (!profile) return { ok: false, error: 'Failed to verify Google token' };
       this.authProfiles.set(connId, profile);
       this.roomForConn(connId)?.updateName(connId, profile.name);
       return { ok: true };
     } catch (err) {
       console.error('google auth failed:', err);
-      return { ok: false, error: 'Ошибка проверки токена' };
+      return { ok: false, error: 'Token verification error' };
     }
   }
 
   createRoom(connId: number, mapType: MapType, maxPlayers: number): { ok: true } | { ok: false; error: string } {
-    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
     const preset = MAP_PRESETS[mapType];
-    if (!preset) return { ok: false, error: 'Неизвестный тип карты' };
+    if (!preset) return { ok: false, error: 'Unknown map type' };
     if (!Number.isInteger(maxPlayers) || maxPlayers < preset.minPlayers || maxPlayers > preset.maxPlayers) {
-      return { ok: false, error: `Игроков должно быть от ${preset.minPlayers} до ${preset.maxPlayers}` };
+      return { ok: false, error: `Players must be between ${preset.minPlayers} and ${preset.maxPlayers}` };
     }
     const room = new Room(this.nextRoomId++, randomCountryName(), mapType, maxPlayers, false, 1);
     const slot = room.addHuman(this.connName(connId), connId);
-    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    if (slot === null) return { ok: false, error: 'The room is full' };
     this.rooms.set(room.id, room);
     this.connToRoom.set(connId, room.id);
     return { ok: true };
   }
 
-  createSolo(connId: number, mapType: MapType, aiCount: number, difficulty: Difficulty = 'medium'): { ok: true } | { ok: false; error: string } {
-    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+  createSolo(connId: number, mapType: MapType, aiCount: number, difficulty: Difficulty = 'medium', training = false): { ok: true } | { ok: false; error: string } {
+    if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
     const preset = MAP_PRESETS[mapType];
-    if (!preset) return { ok: false, error: 'Неизвестный тип карты' };
+    if (!preset) return { ok: false, error: 'Unknown map type' };
     if (!Number.isInteger(aiCount) || aiCount < 1 || aiCount > preset.maxPlayers - 1) {
-      return { ok: false, error: `Компьютеров должно быть от 1 до ${preset.maxPlayers - 1}` };
+      return { ok: false, error: `Computer count must be between 1 and ${preset.maxPlayers - 1}` };
     }
     if (!['easy', 'medium', 'hard'].includes(difficulty)) {
-      return { ok: false, error: 'Неизвестная сложность' };
+      return { ok: false, error: 'Unknown difficulty' };
     }
-    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount, undefined, difficulty);
+    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount, undefined, training ? 'easy' : difficulty, false, training);
     const slot = room.addHuman(this.connName(connId), connId);
-    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    if (slot === null) return { ok: false, error: 'The room is full' };
     this.rooms.set(room.id, room);
     this.connToRoom.set(connId, room.id);
     return room.start(connId);
   }
 
   createLoadTest(connId: number, aiCount: number): { ok: true } | { ok: false; error: string } {
-    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
     if (![5, 10, 20, 30].includes(aiCount)) {
-      return { ok: false, error: 'Количество игроков должно быть 5, 10, 20 или 30' };
+      return { ok: false, error: 'Player count must be 5, 10, 20, or 30' };
     }
     const room = new Room(this.nextRoomId++, randomCountryName(), 'round', aiCount + 1, true, aiCount, undefined, 'medium', true);
     const slot = room.addHuman(this.connName(connId), connId);
-    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    if (slot === null) return { ok: false, error: 'The room is full' };
     this.rooms.set(room.id, room);
     this.connToRoom.set(connId, room.id);
     return room.start(connId);
   }
 
   joinRoom(connId: number, roomId: number): { ok: true } | { ok: false; error: string } {
-    if (this.connToRoom.has(connId)) return { ok: false, error: 'Вы уже в комнате' };
+    if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
     const room = this.rooms.get(roomId);
-    if (!room || room.status !== 'waiting') return { ok: false, error: 'Комната не найдена' };
+    if (!room || room.status !== 'waiting') return { ok: false, error: 'Room not found' };
     const slot = room.addHuman(this.connName(connId), connId);
-    if (slot === null) return { ok: false, error: 'Комната заполнена' };
+    if (slot === null) return { ok: false, error: 'The room is full' };
     this.connToRoom.set(connId, room.id);
     return { ok: true };
   }
@@ -833,19 +836,19 @@ export class RoomManager {
 
   startRoom(connId: number): { ok: true } | { ok: false; error: string } {
     const room = this.roomForConn(connId);
-    if (!room) return { ok: false, error: 'Вы не в комнате' };
+    if (!room) return { ok: false, error: "You're not in this room" };
     return room.start(connId);
   }
 
   restart(connId: number): { ok: true } | { ok: false; error: string } {
     const room = this.roomForConn(connId);
-    if (!room) return { ok: false, error: 'Вы не в комнате' };
+    if (!room) return { ok: false, error: "You're not in this room" };
     return room.restart();
   }
 
   handleAction(connId: number, msg: { type: string; q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean }): ActionResult {
     const room = this.roomForConn(connId);
-    if (!room) return { type: 'error', message: 'Вы не в комнате' };
+    if (!room) return { type: 'error', message: "You're not in a room" };
     return room.handleAction(connId, msg.type, msg);
   }
 
@@ -902,6 +905,6 @@ export class RoomManager {
   }
 
   private connName(connId: number): string {
-    return this.authProfiles.get(connId)?.name ?? 'Игрок';
+    return this.authProfiles.get(connId)?.name ?? 'Player';
   }
 }

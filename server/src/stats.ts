@@ -75,7 +75,7 @@ export class GameStatsRecorder {
     if (lastSnapshotForMerge && lastSnapshotForMerge.type === 'snapshot') {
       for (const sp of lastSnapshotForMerge.players) {
         if (!known.has(sp.id)) {
-          known.set(sp.id, { id: sp.id, name: `Игрок ${sp.id}`, isAi: true, incomeMultiplier: 1 });
+          known.set(sp.id, { id: sp.id, name: `Player ${sp.id}`, isAi: true, incomeMultiplier: 1 });
         }
       }
     }
