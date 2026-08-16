@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '../i18n';
 import { computed } from 'vue';
 import { playerColor, type GameState, type Player } from '../types';
 
@@ -38,10 +39,10 @@ function pointsText(p: Player): string {
       }"
     >
       <span class="player-list__name" :style="{ color: colorOf(p) }">{{ p.name }}</span>
-      <span class="player-list__hexes">{{ p.hexCount }} кл.</span>
-      <span v-if="p.eliminated" class="player-list__dead">выбыл</span>
+      <span class="player-list__hexes">{{ t('hud.hexes', { n: p.hexCount }) }}</span>
+      <span v-if="p.eliminated" class="player-list__dead">{{ t('hud.eliminated') }}</span>
       <span class="player-list__points">{{ pointsText(p) }}</span>
-      <span v-if="p.income !== null" class="player-list__income">+{{ p.income }}/сек</span>
+      <span v-if="p.income !== null" class="player-list__income">+{{ p.income }}{{ t('hud.perSec') }}</span>
     </div>
   </div>
 </template>

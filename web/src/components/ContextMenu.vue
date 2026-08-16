@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { t } from '../i18n';
 import type { Hex, Player } from '../types';
 
 const props = defineProps<{
@@ -37,37 +38,37 @@ const canBuildFortress = computed(() => {
 const items = computed(() => {
   if (isMine.value) {
     if (props.hex.fortress) {
-      return [{ label: 'Снести крепость', disabled: false, hint: '', action: 'remove-fortress' }];
+      return [{ label: t('cm.removeFortress'), disabled: false, hint: '', action: 'remove-fortress' }];
     }
     return [
-      { label: 'Построить крепость', disabled: !canBuildFortress.value, hint: canBuildFortress.value ? '' : 'нужно 15+ клеток и запас лимита', action: 'build-fortress' },
+      { label: t('cm.buildFortress'), disabled: !canBuildFortress.value, hint: canBuildFortress.value ? '' : t('cm.fortressHint'), action: 'build-fortress' },
     ];
   }
   if (isEnemy.value) {
     if (props.pendingFromOwner) {
       return [
-        { label: `Принять ${props.pendingFromOwner.kind === 'peace' ? 'мир' : 'союз'}`, disabled: false, hint: '', action: 'respond-true' },
-        { label: 'Отклонить', disabled: false, hint: '', action: 'respond-false' },
+        { label: props.pendingFromOwner.kind === 'peace' ? t('cm.acceptPeace') : t('cm.acceptAlliance'), disabled: false, hint: '', action: 'respond-true' },
+        { label: t('cm.decline'), disabled: false, hint: '', action: 'respond-false' },
       ];
     }
     if (props.relation === 'peace') {
       return [
-        { label: 'Война', disabled: false, hint: '', action: 'war' },
-        { label: 'Мир', disabled: true, hint: 'уже мир', action: '' },
-        { label: 'Союз', disabled: false, hint: '', action: 'alliance' },
+        { label: t('cm.war'), disabled: false, hint: '', action: 'war' },
+        { label: t('cm.peace'), disabled: true, hint: t('cm.alreadyPeace'), action: '' },
+        { label: t('cm.alliance'), disabled: false, hint: '', action: 'alliance' },
       ];
     }
     if (props.relation === 'war') {
       return [
-        { label: 'Война', disabled: true, hint: 'уже война', action: '' },
-        { label: 'Мир', disabled: false, hint: '', action: 'peace' },
-        { label: 'Союз', disabled: true, hint: 'во время войны нельзя', action: '' },
+        { label: t('cm.war'), disabled: true, hint: t('cm.alreadyWar'), action: '' },
+        { label: t('cm.peace'), disabled: false, hint: '', action: 'peace' },
+        { label: t('cm.alliance'), disabled: true, hint: t('cm.notInWar'), action: '' },
       ];
     }
     return [
-      { label: 'Война', disabled: false, hint: '', action: 'war' },
-      { label: 'Мир', disabled: true, hint: 'вы союзники', action: '' },
-      { label: 'Союз', disabled: true, hint: 'уже союз', action: '' },
+      { label: t('cm.war'), disabled: false, hint: '', action: 'war' },
+      { label: t('cm.peace'), disabled: true, hint: t('cm.allies'), action: '' },
+      { label: t('cm.alliance'), disabled: true, hint: t('cm.alreadyAlliance'), action: '' },
     ];
   }
   return [];

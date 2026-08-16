@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { t } from '../i18n';
 import { playerColor, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
 const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number; menuOpen?: boolean }>();
@@ -245,7 +246,7 @@ function colorOf(id: number | null): string {
 
 function playerName(id: number | null): string {
   if (id === null) return '—';
-  return props.players.find((p) => p.id === id)?.name ?? `Игрок ${id}`;
+  return props.players.find((p) => p.id === id)?.name ?? t('player.name', { id });
 }
 
 function captureState(hex: Hex): { byId: number; progress: number } | null {
@@ -362,14 +363,14 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
       :style="{ left: tooltipPos.left + 'px', top: tooltipPos.top + 'px' }"
     >
       <div class="battle-tooltip__row">
-        <span>{{ TERRAIN_LABELS[hovered.terrain] }}</span>
+        <span>{{ t(TERRAIN_LABELS[hovered.terrain]) }}</span>
         <span class="battle-tooltip__pool">{{ TERRAIN_COSTS[hovered.terrain] }}</span>
       </div>
       <div class="battle-tooltip__row">
-        <span>Владелец: {{ playerName(hovered.ownerId) }}{{ capitalPlayer(hovered) ? ' ★ столица' : '' }}</span>
+        <span>{{ t('hex.owner', { name: playerName(hovered.ownerId) }) }}{{ capitalPlayer(hovered) ? t('hex.capital') : '' }}</span>
       </div>
       <div v-if="hovered.fortress" class="battle-tooltip__row">
-        <span>Крепость</span>
+        <span>{{ t('hex.fortress') }}</span>
       </div>
       <template v-if="hovered.attackerId !== null">
         <div class="battle-tooltip__row">
@@ -382,7 +383,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
         </div>
         <div v-if="captureState(hovered)" class="battle-tooltip__capture">
           <div class="battle-tooltip__capture-label">
-            Захват: {{ playerName(captureState(hovered)!.byId) }}
+            {{ t('hex.capture', { name: playerName(captureState(hovered)!.byId) }) }}
           </div>
           <div class="battle-tooltip__bar">
             <div

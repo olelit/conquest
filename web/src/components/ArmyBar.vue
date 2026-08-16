@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '../i18n';
 import { computed } from 'vue';
 import type { GameState } from '../types';
 
@@ -28,7 +29,7 @@ function step(delta: number): void {
 <template>
   <div class="army-bar">
     <div class="army-bar__row">
-      <span class="army-bar__label">Армия</span>
+      <span class="army-bar__label">{{ t('army.label') }}</span>
       <button class="army-bar__btn" @click="step(-5)">−</button>
       <div class="army-bar__input-wrap">
         <input
@@ -42,7 +43,7 @@ function step(delta: number): void {
         <span class="army-bar__percent">%</span>
       </div>
       <button class="army-bar__btn" @click="step(5)">+</button>
-      <span class="army-bar__hint">% от очков · доступно {{ available }}/{{ limit }}</span>
+      <span class="army-bar__hint">{{ t('army.hint', { available, limit }) }}</span>
     </div>
   </div>
 </template>

@@ -51,8 +51,8 @@ export class GameClient {
     this.send({ type: 'menu' });
   }
 
-  sendStartSolo(mapType: MapType, aiCount: number, difficulty: Difficulty): void {
-    this.send({ type: 'start-solo', mapType, aiCount, difficulty });
+  sendStartSolo(mapType: MapType, aiCount: number, difficulty: Difficulty, training = false): void {
+    this.send({ type: 'start-solo', mapType, aiCount, difficulty, training });
   }
 
   sendCreateRoom(mapType: MapType, maxPlayers: number): void {

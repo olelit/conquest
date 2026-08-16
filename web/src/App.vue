@@ -6,6 +6,8 @@ import FpsOverlay from './components/FpsOverlay.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
+import { t, lang, setLang } from './i18n';
+import { STAGE_ORDER, continueTutorial, initTraining, observeTraining, stopTraining, taskDone, trainingStage, type TrainingStage } from './training';
 import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Difficulty, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
 
 declare global {
@@ -63,6 +65,17 @@ const defeated = computed(() => {
 });
 const isHost = computed(() => room.value !== null && room.value.hostPlayerId === playerId.value);
 const showPause = computed(() => room.value?.aiMode === true);
+const STAGE_META: Record<TrainingStage, { titleKey: string; hintKey: string }> = {
+  capture: { titleKey: 'training.captureTitle', hintKey: 'training.captureHint' },
+  attack: { titleKey: 'training.attackTitle', hintKey: 'training.attackHint' },
+  defend: { titleKey: 'training.defendTitle', hintKey: 'training.defendHint' },
+  fortress: { titleKey: 'training.fortressTitle', hintKey: 'training.fortressHint' },
+  diplomacy: { titleKey: 'training.diplomacyTitle', hintKey: 'training.diplomacyHint' },
+  done: { titleKey: 'training.doneTitle', hintKey: 'training.doneHint' },
+};
+const trainingIndex = computed(() => (trainingStage.value === null ? 0 : STAGE_ORDER.indexOf(trainingStage.value) + 1));
+const trainingTitleKey = computed(() => (trainingStage.value ? STAGE_META[trainingStage.value].titleKey : ''));
+const trainingHintKey = computed(() => (trainingStage.value ? STAGE_META[trainingStage.value].hintKey : ''));
 const aiMax = computed(() => MAP_INFO[aiMapType.value].maxPlayers - 1);
 const createOptions = computed(() => {
   const info = MAP_INFO[createMapType.value];
@@ -85,6 +98,37 @@ watch(createMapType, () => {
 watch(
   () => room.value,
   () => closeContextMenu(),
+);
+
+function trainingCtl(): { sendPause: () => void; isPaused: () => boolean } {
+  return { sendPause: () => client.sendPause(), isPaused: () => room.value?.paused ?? false };
+}
+
+watch(
+  () => room.value,
+  (r) => {
+    if (!r || !r.training) {
+      stopTraining();
+      return;
+    }
+    if (r.training && r.status === 'playing' && r.game && trainingStage.value === null && sessionStorage.getItem('conquest.training') === '1') {
+      sessionStorage.removeItem('conquest.training');
+      initTraining(trainingCtl());
+    }
+  },
+);
+
+watch(
+  () => room.value?.game,
+  (g) => {
+    if (!g) return;
+    if (trainingStage.value !== null && playerId.value !== null) {
+      observeTraining(g, playerId.value);
+      if (g.winnerId !== null || (g.players.find((p) => p.id === playerId.value)?.eliminated ?? false)) {
+        stopTraining();
+      }
+    }
+  },
 );
 
 const client = new GameClient();
@@ -257,9 +301,12 @@ function onPause(): void {
 }
 
 function onRestart(): void {
-  if (!window.confirm('Перезапустить игру?')) return;
+  if (!window.confirm(t('confirm.restart'))) return;
   burgerOpen.value = false;
   client.sendRestart();
+  if (room.value?.training) {
+    initTraining(trainingCtl());
+  }
 }
 
 function goToMenu(): void {
@@ -291,6 +338,11 @@ function startSolo(): void {
   client.sendStartSolo(aiMapType.value, aiCount.value, aiDifficulty.value);
 }
 
+function startTutorial(): void {
+  sessionStorage.setItem('conquest.training', '1');
+  client.sendStartSolo('normal', 1, 'easy', true);
+}
+
 function createRoom(): void {
   client.sendCreateRoom(createMapType.value, createMaxPlayers.value);
 }
@@ -308,7 +360,7 @@ function startRoom(): void {
 }
 
 function onToMenu(): void {
-  if (!window.confirm('Выйти из комнаты? Игра продолжится с компьютером вместо вас.')) return;
+  if (!window.confirm(t('confirm.leave'))) return;
   burgerOpen.value = false;
   client.sendToMenu();
 }
@@ -355,13 +407,18 @@ onBeforeUnmount(() => {
     <template v-if="screen === 'menu' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
-        <p class="menu__subtitle">Выбери режим игры</p>
-        <button class="menu__btn" :disabled="!connected" @click="goToAi">Играть с компьютером</button>
-        <button class="menu__btn" :disabled="!connected" @click="goToLobby">Играть с людьми</button>
-        <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">Нагрузочный тест</button>
+        <p class="menu__subtitle">{{ t('menu.subtitle') }}</p>
+        <button class="menu__btn" :disabled="!connected" @click="goToAi">{{ t('menu.playVsAi') }}</button>
+        <button class="menu__btn" :disabled="!connected" @click="startTutorial">{{ t('menu.tutorial') }}</button>
+        <button class="menu__btn" :disabled="!connected" @click="goToLobby">{{ t('menu.playVsHumans') }}</button>
+        <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">{{ t('menu.loadTest') }}</button>
         <div v-if="GOOGLE_CLIENT_ID" class="menu__google">
-          <div v-if="auth" class="menu__auth">Вы вошли как {{ auth.name }}</div>
+          <div v-if="auth" class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</div>
           <div v-else id="google-btn"></div>
+        </div>
+        <div class="menu__lang">
+          <button class="menu__lang-btn" :class="{ 'is-active': lang === 'en' }" @click="setLang('en')">EN</button>
+          <button class="menu__lang-btn" :class="{ 'is-active': lang === 'ru' }" @click="setLang('ru')">RU</button>
         </div>
       </div>
     </template>
@@ -369,65 +426,65 @@ onBeforeUnmount(() => {
     <template v-else-if="screen === 'ai' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
-        <p class="menu__subtitle">Игра с компьютером</p>
+        <p class="menu__subtitle">{{ t('menu.aiSubtitle') }}</p>
         <select v-model="aiMapType" class="menu__select">
           <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
-            {{ info.label }} — {{ info.description }}
+            {{ t(info.labelKey) }} — {{ t(info.descriptionKey) }}
           </option>
         </select>
         <div class="menu__row">
-          <span class="menu__label">Компьютеров:</span>
+          <span class="menu__label">{{ t('menu.aiCount') }}</span>
           <select v-model.number="aiCount" class="menu__select">
             <option v-for="n in aiMax" :key="n" :value="n">{{ n }}</option>
           </select>
         </div>
         <div class="menu__row">
-          <span class="menu__label">Сложность:</span>
+          <span class="menu__label">{{ t('menu.difficulty') }}</span>
           <select v-model="aiDifficulty" class="menu__select">
-            <option value="easy">Лёгкая</option>
-            <option value="medium">Средняя</option>
-            <option value="hard">Сложная</option>
+            <option value="easy">{{ t('difficulty.easy') }}</option>
+            <option value="medium">{{ t('difficulty.medium') }}</option>
+            <option value="hard">{{ t('difficulty.hard') }}</option>
           </select>
         </div>
-        <button class="menu__btn" :disabled="!connected" @click="startSolo">Начать игру</button>
-        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
+        <button class="menu__btn" :disabled="!connected" @click="startSolo">{{ t('menu.startGame') }}</button>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">{{ t('menu.back') }}</button>
       </div>
     </template>
 
     <template v-else-if="screen === 'lobby' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
-        <p class="menu__subtitle">Игра с людьми — открытые комнаты</p>
+        <p class="menu__subtitle">{{ t('menu.lobbySubtitle') }}</p>
         <div class="lobby">
           <div v-for="r in rooms" :key="r.id" class="lobby__room" @click="joinRoom(r.id)">
             <span class="lobby__name">{{ r.name }}</span>
-            <span class="lobby__map">{{ MAP_INFO[r.mapType].label }}</span>
+            <span class="lobby__map">{{ t(MAP_INFO[r.mapType].labelKey) }}</span>
             <span class="lobby__players">{{ r.humans }}/{{ r.maxPlayers }}</span>
           </div>
-          <div v-if="rooms.length === 0" class="lobby__empty">Открытых комнат нет</div>
+          <div v-if="rooms.length === 0" class="lobby__empty">{{ t('menu.noRooms') }}</div>
         </div>
         <div class="lobby__create">
-          <h3 class="lobby__create-title">Создать комнату</h3>
+          <h3 class="lobby__create-title">{{ t('menu.createRoom') }}</h3>
           <select v-model="createMapType" class="menu__select">
             <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
-              {{ info.label }} — {{ info.description }}
+              {{ t(info.labelKey) }} — {{ t(info.descriptionKey) }}
             </option>
           </select>
           <select v-model.number="createMaxPlayers" class="menu__select">
-            <option v-for="n in createOptions" :key="n" :value="n">{{ n }} игроков</option>
+            <option v-for="n in createOptions" :key="n" :value="n">{{ t('menu.playersN', { n }) }}</option>
           </select>
-          <button class="menu__btn" :disabled="!connected" @click="createRoom">Создать</button>
+          <button class="menu__btn" :disabled="!connected" @click="createRoom">{{ t('menu.create') }}</button>
         </div>
-        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">{{ t('menu.back') }}</button>
       </div>
     </template>
 
     <template v-else-if="screen === 'loadtest' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
-        <p class="menu__subtitle">Нагрузочный тест — N игроков на карте «Круглая»</p>
+        <p class="menu__subtitle">{{ t('menu.loadTestSubtitle') }}</p>
         <div class="menu__row">
-          <span class="menu__label">Игроков:</span>
+          <span class="menu__label">{{ t('menu.players') }}</span>
           <select v-model.number="loadTestPlayers" class="menu__select">
             <option :value="5">5</option>
             <option :value="10">10</option>
@@ -435,8 +492,8 @@ onBeforeUnmount(() => {
             <option :value="30">30</option>
           </select>
         </div>
-        <button class="menu__btn" :disabled="!connected" @click="startLoadTest">Запустить тест</button>
-        <button class="menu__btn menu__btn--ghost" @click="goToMenu">В меню</button>
+        <button class="menu__btn" :disabled="!connected" @click="startLoadTest">{{ t('menu.runTest') }}</button>
+        <button class="menu__btn menu__btn--ghost" @click="goToMenu">{{ t('menu.back') }}</button>
       </div>
     </template>
 
@@ -444,20 +501,20 @@ onBeforeUnmount(() => {
       <div class="menu">
         <h1 class="menu__title">{{ room.name }}</h1>
         <p class="menu__subtitle">
-          Карта: {{ MAP_INFO[room.mapType].label }} · {{ room.slots.length }}/{{ room.maxPlayers }} игроков
+          {{ t('menu.mapNPlayers', { map: t(MAP_INFO[room.mapType].labelKey), slots: room.slots.length, max: room.maxPlayers }) }}
         </p>
         <div class="lobby">
           <div v-for="s in room.slots" :key="s.id" class="lobby__room">
             <span class="lobby__name">{{ s.name }}</span>
-            <span v-if="s.id === room.hostPlayerId" class="lobby__host">хозяин</span>
+            <span v-if="s.id === room.hostPlayerId" class="lobby__host">{{ t('menu.host') }}</span>
           </div>
           <div v-if="room.maxPlayers - room.slots.length > 0" class="lobby__empty">
-            Свободно мест: {{ room.maxPlayers - room.slots.length }}
+            {{ t('menu.freeSlots', { n: room.maxPlayers - room.slots.length }) }}
           </div>
         </div>
-        <button v-if="isHost" class="menu__btn" :disabled="!connected" @click="startRoom">Начать игру</button>
-        <p v-else class="menu__waiting">Ожидание начала игры хозяином…</p>
-        <button class="menu__btn menu__btn--ghost" @click="leaveRoom">Покинуть комнату</button>
+        <button v-if="isHost" class="menu__btn" :disabled="!connected" @click="startRoom">{{ t('menu.startGame') }}</button>
+        <p v-else class="menu__waiting">{{ t('menu.waitingHost') }}</p>
+        <button class="menu__btn menu__btn--ghost" @click="leaveRoom">{{ t('menu.leaveRoom') }}</button>
       </div>
     </template>
 
@@ -466,22 +523,28 @@ onBeforeUnmount(() => {
         <div class="app__header">
           <h1>{{ room.name }}</h1>
           <div class="app__controls">
+            <span v-if="room?.training" class="training-badge">{{ t('training.badge') }}</span>
             <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause">
-              {{ room.paused ? 'Продолжить' : 'Пауза' }}
+              {{ room.paused ? t('menu.resume') : t('menu.pause') }}
             </button>
             <button class="app__btn app__burger" @click="burgerOpen = !burgerOpen">☰</button>
           </div>
         </div>
-        <div v-if="room.paused && !winner" class="banner banner--pause">Пауза</div>
-        <div v-if="winner && defeated" class="banner banner--error banner--center">Поражение: {{ winner }}!</div>
-        <div v-else-if="winner" class="banner banner--win banner--center">Победа: {{ winner }}!</div>
-        <div v-else-if="!connected" class="banner banner--warn">Подключение…</div>
+        <div v-if="room.paused && !winner" class="banner banner--pause">{{ t('banner.paused') }}</div>
+        <div v-if="winner && defeated" class="banner banner--error banner--center">{{ t('banner.defeat', { name: winner }) }}</div>
+        <div v-else-if="winner" class="banner banner--win banner--center">{{ t('banner.victory', { name: winner }) }}</div>
+        <div v-else-if="!connected" class="banner banner--warn">{{ t('banner.connecting') }}</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
+        <div v-if="trainingStage && !winner && !defeated" class="training-overlay">
+          <div class="training-card">
+            <div class="training-card__title">{{ t('training.stageN', { n: trainingIndex, name: t(trainingTitleKey) }) }}</div>
+            <div class="training-card__hint">{{ t(trainingHintKey) }}</div>
+            <button v-if="taskDone" class="training-card__ok" @click="continueTutorial">{{ t('training.ok') }}</button>
+          </div>
+        </div>
         <Hud v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" />
         <FpsOverlay v-if="room.loadTest" />
-        <div v-if="room && game && !room.loadTest" class="hotkeys-hint">
-          1–9/0 — армия · Tab — карта · Пробел — пауза
-        </div>
+        <div v-if="room && game && !room.loadTest" class="hotkeys-hint">{{ t('hotkeys.hint') }}</div>
         <HexMap
           ref="hexMapRef"
           v-if="game"
@@ -520,8 +583,8 @@ onBeforeUnmount(() => {
 
     <div v-if="burgerOpen" class="burger-overlay" @click.self="burgerOpen = false">
       <div class="burger-menu">
-        <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">Перезапустить игру</button>
-        <button class="burger-menu__item" @click="onToMenu">Выйти в меню</button>
+        <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">{{ t('burger.restart') }}</button>
+        <button class="burger-menu__item" @click="onToMenu">{{ t('burger.toMenu') }}</button>
       </div>
     </div>
   </main>
@@ -676,6 +739,70 @@ onBeforeUnmount(() => {
   font-size: 18px;
   color: #ffd54f;
   margin: 0;
+}
+
+.menu__lang {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.menu__lang-btn {
+  padding: 6px 14px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+.menu__lang-btn.is-active {
+  background: #888;
+  color: #fff;
+}
+
+.training-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  font-size: 12px;
+  font-weight: 600;
+}
+.training-overlay {
+  position: fixed;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 14px 20px;
+  background: rgba(30, 30, 30, 0.92);
+  color: #fff;
+  border-radius: 10px;
+  border: 1px solid #888;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  max-width: 480px;
+  text-align: center;
+}
+.training-card__title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.training-card__hint {
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.training-card__ok {
+  padding: 6px 24px;
+  border: none;
+  border-radius: 6px;
+  background: #4caf50;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+.training-card__ok:hover {
+  background: #43a047;
 }
 
 .menu__google {

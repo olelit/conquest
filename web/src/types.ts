@@ -5,18 +5,18 @@ export type MapType = 'normal' | 'long' | 'island' | 'round';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface MapInfo {
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   minPlayers: number;
   maxPlayers: number;
   recommendedAi: number;
 }
 
 export const MAP_INFO: Record<MapType, MapInfo> = {
-  normal: { label: 'Обычная', description: 'прямоугольник 16×12', minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
-  long: { label: 'Длинная', description: 'полоса 24×9', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
-  island: { label: 'Остров', description: 'овал с водой по краям', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
-  round: { label: 'Круглая', description: 'круг радиусом 9', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
+  normal: { labelKey: 'map.normal', descriptionKey: 'map.normalDesc', minPlayers: 2, maxPlayers: 5, recommendedAi: 1 },
+  long: { labelKey: 'map.long', descriptionKey: 'map.longDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  island: { labelKey: 'map.island', descriptionKey: 'map.islandDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  round: { labelKey: 'map.round', descriptionKey: 'map.roundDesc', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
 };
 
 export const PLAYER_COLORS = ['#9c27b0', '#e53935', '#00897b', '#fb8c00', '#1e88e5', '#43a047'];
@@ -51,12 +51,18 @@ export interface Player {
   relation: 'self' | 'ally' | 'enemy';
 }
 
+export interface PendingProposal {
+  from: number;
+  to: number;
+  kind: 'peace' | 'alliance';
+}
+
 export interface GameState {
   players: Player[];
   hexes: Hex[];
   winnerId: number | null;
   captureTicks: number;
-  pendingProposals: { from: number; kind: 'peace' | 'alliance' }[];
+  pendingProposals: PendingProposal[];
 }
 
 export interface RoomLobbyInfo {
@@ -81,6 +87,7 @@ export interface RoomView {
   status: 'waiting' | 'playing';
   aiMode: boolean;
   loadTest: boolean;
+  training: boolean;
   hostPlayerId: number | null;
   slots: RoomSlot[];
   paused: boolean;
@@ -96,7 +103,7 @@ export type ClientMessage =
   | { type: 'restart' }
   | { type: 'menu' }
   | { type: 'leave-room' }
-  | { type: 'start-solo'; mapType: MapType; aiCount: number; difficulty: Difficulty }
+  | { type: 'start-solo'; mapType: MapType; aiCount: number; difficulty: Difficulty; training?: boolean }
   | { type: 'create-room'; mapType: MapType; maxPlayers: number }
   | { type: 'join-room'; roomId: number }
   | { type: 'start-room' }
@@ -134,12 +141,12 @@ export const TERRAIN_COLORS: Record<Terrain, string> = {
 };
 
 export const TERRAIN_LABELS: Record<Terrain, string> = {
-  grass: 'Равнина',
-  forest: 'Лес',
-  mountain: 'Горы',
-  water: 'Вода',
-  desert: 'Пустыня',
-  mine: 'Шахта',
+  grass: 'terrain.grass',
+  forest: 'terrain.forest',
+  mountain: 'terrain.mountain',
+  water: 'terrain.water',
+  desert: 'terrain.desert',
+  mine: 'terrain.mine',
 };
 
 export const TERRAIN_COSTS: Record<Terrain, number> = {

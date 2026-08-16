@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '../i18n';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 const fps = ref(0);
@@ -50,12 +51,12 @@ onBeforeUnmount(() => cancelAnimationFrame(raf));
   <div class="fps-overlay">
     <div class="fps-overlay__live">FPS: {{ fps }}</div>
     <button class="fps-overlay__btn" @click="showSummary = !showSummary">
-      {{ showSummary ? 'Скрыть итог' : 'Итог' }}
+      {{ showSummary ? t('fps.hideSummary') : t('fps.summary') }}
     </button>
     <div v-if="showSummary" class="fps-overlay__summary">
       <div>Мин: {{ Math.round(minFps) }}</div>
-      <div>Средний: {{ avgFps() }}</div>
-      <div>Время: {{ duration() }} с</div>
+      <div>{{ t('fps.avg', { fps: avgFps() }) }}</div>
+      <div>{{ t('fps.time', { s: duration() }) }}</div>
     </div>
   </div>
 </template>
