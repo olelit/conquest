@@ -112,7 +112,7 @@ export class GraphStore {
        OPTIONAL MATCH (e)-[rel:REL]-(peer:Entity)
        OPTIONAL MATCH (e)-[:RECALLS]->(m:Memory)
        RETURN e.name AS entity,
-              collect(DISTINCT {peer: peer.name, rel: type(rel)}) AS relations,
+              collect(DISTINCT {peer: peer.name, rel: rel.type}) AS relations,
               collect(DISTINCT m.text) AS memories`,
       { name },
     );

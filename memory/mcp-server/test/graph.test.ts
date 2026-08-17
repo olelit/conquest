@@ -78,6 +78,7 @@ describe('GraphStore', () => {
     await store.related('Conquest');
     const call = calls.find((c) => c.q.includes('OPTIONAL MATCH'))!;
     expect(call.q).toContain('(e)-[rel:REL]-(peer:Entity)');
+    expect(call.q).toContain('rel: rel.type');
     expect(call.q).not.toContain('(e)-[rel]-(peer)');
   });
 });
