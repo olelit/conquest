@@ -104,7 +104,7 @@ export interface RoomView {
   slots: RoomSlot[];
   paused: boolean;
   game: GameState | null;
-  log: string[];
+  log: { text: string; kind: 'info' | 'war' | 'diplomacy' }[];
 }
 
 export type ClientMessage =

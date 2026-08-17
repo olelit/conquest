@@ -614,7 +614,7 @@ onBeforeUnmount(() => {
         />
         <ArmyBar v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" @army-change="onArmyChange" />
         <div v-if="room.log?.length && !room.loadTest" class="log-panel">
-          <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry">{{ entry }}</div>
+          <div v-for="(entry, i) in room.log" :key="i" class="log-panel__entry" :class="`log-panel__entry--${entry.kind}`">{{ entry.text }}</div>
         </div>
       </div>
     </template>
@@ -1034,6 +1034,14 @@ onBeforeUnmount(() => {
 
 .log-panel__entry:last-child {
   border-bottom: none;
+}
+
+.log-panel__entry--war {
+  color: #ff6b6b;
+}
+
+.log-panel__entry--diplomacy {
+  color: #69db7c;
 }
 
 .burger-overlay {
