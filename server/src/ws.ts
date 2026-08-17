@@ -52,6 +52,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
   wss.on('connection', (ws) => {
     const connId = ++connCounter;
     connIds.set(ws, connId);
+    manager.connectionOpened(connId);
     broadcast();
 
     ws.on('message', async (raw) => {

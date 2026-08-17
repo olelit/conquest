@@ -105,7 +105,11 @@ export function registerAdminRoutes(app: express.Express, manager: RoomManager, 
   const protectedRouter = express.Router();
   protectedRouter.use(requireAdmin);
 
-  // /status, /dumps, /dumps/:id, /rooms/:roomId/dump добавляются в Task 4 и Task 5
+  protectedRouter.get('/status', (_req, res) => {
+    res.json(manager.adminOverview());
+  });
+
+  // /dumps, /dumps/:id, /rooms/:roomId/dump добавляются в Task 5
 
   app.use('/api/admin', publicRouter);
   app.use('/api/admin', protectedRouter);

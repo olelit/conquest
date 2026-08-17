@@ -91,6 +91,31 @@ export interface RoomDump {
   attackStartedAt: Record<string, number>;
 }
 
+export interface AdminPlayerInfo {
+  connId: number;
+  name: string;
+  email: string | null;
+  roomId: number | null;
+  roomName: string | null;
+  roomStatus: RoomStatus | null;
+  isHost: boolean;
+  connectedAt: number;
+}
+
+export interface AdminRoomInfo {
+  id: number;
+  name: string;
+  mapType: MapType;
+  status: RoomStatus;
+  aiMode: boolean;
+  loadTest: boolean;
+  training: boolean;
+  paused: boolean;
+  humans: number;
+  slots: number;
+  winnerId: number | null;
+}
+
 export type ActionResult = { type: 'state' } | { type: 'error'; message: string };
 
 export interface RoomLobbyInfo {
@@ -840,6 +865,7 @@ function uniqueCountryName(used: Set<string>): string {
 export class RoomManager {
   private rooms = new Map<number, Room>();
   private connToRoom = new Map<number, number>();
+  private onlineConns = new Map<number, number>();
   private authProfiles = new Map<number, GoogleProfile>();
   private nextRoomId = 1;
 
@@ -1012,7 +1038,49 @@ export class RoomManager {
     }
   }
 
+  connectionOpened(connId: number): void {
+    this.onlineConns.set(connId, Date.now());
+  }
+
+  adminOverview(): { online: number; players: AdminPlayerInfo[]; rooms: AdminRoomInfo[] } {
+    const players: AdminPlayerInfo[] = [];
+    for (const [connId, connectedAt] of this.onlineConns) {
+      const room = this.roomForConn(connId);
+      const profile = this.authProfiles.get(connId);
+      const slotId = room?.slotForConn(connId) ?? null;
+      const slot = room && slotId !== null ? room.view().slots.find((s) => s.id === slotId) ?? null : null;
+      players.push({
+        connId,
+        name: profile?.name ?? slot?.name ?? 'Player',
+        email: profile?.email ?? null,
+        roomId: room?.id ?? null,
+        roomName: room?.name ?? null,
+        roomStatus: room?.status ?? null,
+        isHost: slotId !== null && room?.hostPlayerId === slotId,
+        connectedAt,
+      });
+    }
+    const rooms: AdminRoomInfo[] = [];
+    for (const room of this.rooms.values()) {
+      rooms.push({
+        id: room.id,
+        name: room.name,
+        mapType: room.mapType,
+        status: room.status,
+        aiMode: room.aiMode,
+        loadTest: room.loadTest,
+        training: room.training,
+        paused: room.paused,
+        humans: room.humanCount,
+        slots: room.slotsCount,
+        winnerId: room.gameState?.winnerId ?? null,
+      });
+    }
+    return { online: players.length, players, rooms };
+  }
+
   connectionClosed(connId: number): void {
+    this.onlineConns.delete(connId);
     this.leaveRoom(connId);
     this.authProfiles.delete(connId);
   }

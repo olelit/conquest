@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as rules from '../src/rules.js';
-import { Room } from '../src/rooms.js';
+import { Room, RoomManager } from '../src/rooms.js';
 import type { Difficulty } from '../src/config.js';
 
 function makeRoom(aiMode = false, aiCount = 1, maxPlayers = 4): Room {
@@ -877,5 +877,32 @@ describe('Room: дамп состояния', () => {
     expect(dump.diplomacy['1-2']).toBe('war');
     expect(dump.slots).toHaveLength(3);
     expect(dump.log.length).toBeGreaterThan(0);
+  });
+});
+
+describe('RoomManager: онлайн-игроки', () => {
+  it('connectionOpened/Closed меняют online, adminOverview описывает игроков', () => {
+    const m = new RoomManager();
+    expect(m.adminOverview().online).toBe(0);
+    m.connectionOpened(1);
+    m.connectionOpened(2);
+    m.createRoom(1, 'normal', 4);
+    m.joinRoom(2, 1);
+    const overview = m.adminOverview();
+    expect(overview.online).toBe(2);
+    const p1 = overview.players.find((p) => p.connId === 1)!;
+    expect(p1).toMatchObject({ name: 'Player', roomId: 1, isHost: true });
+    m.connectionClosed(1);
+    expect(m.adminOverview().online).toBe(1);
+    expect(m.adminOverview().players.find((p) => p.connId === 2)!.roomId).toBe(1);
+  });
+  it('rooms в adminOverview заполняются', () => {
+    const m = new RoomManager();
+    m.connectionOpened(1);
+    m.createRoom(1, 'normal', 4);
+    m.startRoom(1);
+    const rooms = m.adminOverview().rooms;
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]).toMatchObject({ mapType: 'normal', status: 'playing', humans: 1, aiMode: false });
   });
 });
