@@ -40,7 +40,10 @@ export function verifyToken(token: string, secret: string): { u: string } | null
 }
 
 export function authAdmin(username: string, password: string): boolean {
-  return username === config.adminUser && password === config.adminPassword;
+  if (username !== config.adminUser) return false;
+  const actual = createHmac('sha256', config.adminSecret).update(password).digest();
+  const expected = createHmac('sha256', config.adminSecret).update(config.adminPassword).digest();
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export function adminSession(req: Request): { u: string } | null {

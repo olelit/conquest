@@ -77,17 +77,19 @@ function renderStatus(data) {
     <tr>
       <td>${esc(p.name)}</td>
       <td>${p.email ? esc(p.email) : '—'}</td>
-      <td>${p.roomName ? esc(p.roomName) + ' <span class="badge ' + p.roomStatus + '">' + p.roomStatus + '</span>' : 'лобби'}</td>
+      <td>${p.roomName ? esc(p.roomName) + ' <span class="badge ' + esc(p.roomStatus) + '">' + esc(p.roomStatus) + '</span>' : 'лобби'}</td>
       <td>${p.isHost ? 'хост' : ''}</td>
       <td>${new Date(p.connectedAt).toLocaleTimeString()}</td>
     </tr>`).join('');
   $('#players').innerHTML = rows || '<tr><td colspan="5" class="note">Нет подключений</td></tr>';
+}
 
+function renderRooms(data) {
   const rooms = data.rooms.map((r) => `
     <div class="card">
       <div class="row">
         <strong>${esc(r.name)}</strong>
-        <span class="badge ${r.status}">${r.status}</span>
+        <span class="badge ${esc(r.status)}">${esc(r.status)}</span>
         <span class="badge">${esc(r.mapType)}</span>
         <span class="note">люди: ${r.humans} / слотов: ${r.slots}${r.aiMode ? ' · ИИ' : ''}${r.paused ? ' · пауза' : ''}</span>
       </div>
@@ -114,8 +116,49 @@ function renderStatus(data) {
   });
 }
 
-function renderRoomsHeader() {
-  $('#rooms').innerHTML = '<p class="note">…</p>';
+async function renderDashboard() {
+  $('#view').innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <h2 id="welcome">Панель администратора</h2>
+      <button class="ghost" id="logout">Выйти</button>
+    </div>
+    <h2>Игроки онлайн: <span id="online">0</span></h2>
+    <div class="card"><table><thead><tr><th>Имя</th><th>Email</th><th>Комната</th><th>Роль</th><th>Соединён</th></tr></thead><tbody id="players"></tbody></table></div>
+    <h2>Комнаты</h2>
+    <div id="rooms"></div>
+    <h2>Дампы</h2>
+    <div class="card"><table><thead><tr><th>#</th><th>Комната</th><th>Карта</th><th>Заметка</th><th>Когда</th><th></th></tr></thead><tbody id="dumps"></tbody></table></div>
+    <div id="dump-view"></div>`;
+  $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); stopPoll(); boot(); };
+  let status = { online: 0, players: [], rooms: [] };
+  try {
+    const r = await api('/api/admin/status');
+    if (r && Array.isArray(r.players) && Array.isArray(r.rooms)) status = r;
+  } catch (e) {
+    if (e.message === 'UNAUTHORIZED') { boot(); return; }
+  }
+  renderStatus(status);
+  renderRooms(status);
+  loadDumps();
+  poll();
+}
+
+async function refreshPlayers() {
+  const r = await api('/api/admin/status');
+  if (r && Array.isArray(r.players)) renderStatus(r);
+}
+
+function poll() {
+  if (statusTimer) clearInterval(statusTimer);
+  const tick = async () => {
+    try {
+      await refreshPlayers();
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { stopPoll(); boot(); }
+    }
+  };
+  tick();
+  statusTimer = setInterval(tick, 2000);
 }
 
 async function loadDumps() {
@@ -140,40 +183,6 @@ async function loadDumps() {
       };
     });
   } catch (e) { /* 401 обрабатывается в poll */ }
-}
-
-function renderDashboard() {
-  $('#view').innerHTML = `
-    <div class="row" style="justify-content:space-between">
-      <h2 id="welcome">Панель администратора</h2>
-      <button class="ghost" id="logout">Выйти</button>
-    </div>
-    <h2>Игроки онлайн: <span id="online">0</span></h2>
-    <div class="card"><table><thead><tr><th>Имя</th><th>Email</th><th>Комната</th><th>Роль</th><th>Соединён</th></tr></thead><tbody id="players"></tbody></table></div>
-    <h2>Комнаты</h2>
-    <div id="rooms"></div>
-    <h2>Дампы</h2>
-    <div class="card"><table><thead><tr><th>#</th><th>Комната</th><th>Карта</th><th>Заметка</th><th>Когда</th><th></th></tr></thead><tbody id="dumps"></tbody></table></div>
-    <div id="dump-view"></div>`;
-  $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); stopPoll(); boot(); };
-  renderStatus({ online: 0, players: [], rooms: [] });
-  renderRoomsHeader();
-  loadDumps();
-  poll();
-}
-
-function poll() {
-  if (statusTimer) clearInterval(statusTimer);
-  const tick = async () => {
-    try {
-      const r = await api('/api/admin/status');
-      if (r && Array.isArray(r.players)) renderStatus(r);
-    } catch (e) {
-      if (e.message === 'UNAUTHORIZED') { stopPoll(); boot(); }
-    }
-  };
-  tick();
-  statusTimer = setInterval(tick, 2000);
 }
 
 function stopPoll() {

@@ -38,6 +38,20 @@ async function main(): Promise<void> {
 
   const manager = new RoomManager();
   registerAdminRoutes(app, manager, dumpsRepository);
+
+  if (process.env.NODE_ENV === 'production') {
+    const cfg = await import('./config.js');
+    const insecure =
+      cfg.config.adminUser === 'admin' ||
+      cfg.config.adminPassword === 'admin' ||
+      cfg.config.adminSecret === 'conquest-admin-dev-secret';
+    if (insecure) {
+      console.warn(
+        'WARNING: admin uses default credentials/secret. Set CONQUEST_ADMIN_USER, CONQUEST_ADMIN_PASSWORD, CONQUEST_ADMIN_SECRET in production.',
+      );
+    }
+  }
+
   console.log('Conquest server ready: rooms in memory');
 
   const server = http.createServer(app);
