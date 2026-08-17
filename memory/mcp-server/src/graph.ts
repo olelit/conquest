@@ -119,10 +119,12 @@ export class GraphStore {
     const row = rows[0];
     if (!row) return { entity: name, relations: [], memories: [] };
     const relations = Array.isArray(row.relations)
-      ? (row.relations as unknown[]).map((r) => {
-          const item = r as { peer?: unknown; rel?: unknown };
-          return { peer: item.peer == null ? null : String(item.peer), rel: item.rel == null ? null : String(item.rel) };
-        })
+      ? (row.relations as unknown[])
+          .map((r) => {
+            const item = r as { peer?: unknown; rel?: unknown };
+            return { peer: item.peer == null ? null : String(item.peer), rel: item.rel == null ? null : String(item.rel) };
+          })
+          .filter((r) => r.peer !== null && r.rel !== null)
       : [];
     const memories = Array.isArray(row.memories) ? (row.memories as unknown[]).map((m) => String(m)) : [];
     return { entity: String(row.entity), relations, memories };

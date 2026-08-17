@@ -73,6 +73,20 @@ describe('GraphStore', () => {
     expect(out.memories).toEqual(['Проект на Vue 3']);
   });
 
+  it('related отбрасывает пустые пары relations (peer/rel null)', async () => {
+    const { store, calls } = fakeStore(() => [
+      {
+        entity: 'user',
+        relations: [{ peer: null, rel: null }, { peer: 'Vue 3', rel: 'depends_on' }],
+        memories: ['Мемори у user'],
+      },
+    ]);
+    const out = await store.related('user');
+    expect(out.entity).toBe('user');
+    expect(out.relations).toEqual([{ peer: 'Vue 3', rel: 'depends_on' }]);
+    expect(out.memories).toEqual(['Мемори у user']);
+  });
+
   it('related ищет только REL между сущностями', async () => {
     const { store, calls } = fakeStore(() => []);
     await store.related('Conquest');
