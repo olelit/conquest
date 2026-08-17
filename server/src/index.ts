@@ -1,9 +1,10 @@
 import http from 'http';
 import express from 'express';
-import { closeDb, initDb } from './db.js';
+import { closeDb, initDb, dumpsRepository } from './db.js';
 import { config } from './config.js';
 import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
+import { registerAdminRoutes } from './admin.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const MAX_DB_RETRIES = 15;
@@ -27,6 +28,7 @@ async function connectWithRetry(): Promise<void> {
 
 async function main(): Promise<void> {
   const app = express();
+  app.use(express.json());
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
   await connectWithRetry();
 
   const manager = new RoomManager();
+  registerAdminRoutes(app, manager, dumpsRepository);
   console.log('Conquest server ready: rooms in memory');
 
   const server = http.createServer(app);

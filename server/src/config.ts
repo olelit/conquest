@@ -36,4 +36,7 @@ export const config = {
   } as Record<Difficulty, number>,
   tickIntervalMs: number('CONQUEST_TICK_INTERVAL_MS', 500),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  adminUser: process.env.CONQUEST_ADMIN_USER ?? 'admin',
+  adminPassword: process.env.CONQUEST_ADMIN_PASSWORD ?? 'admin',
+  adminSecret: process.env.CONQUEST_ADMIN_SECRET ?? 'conquest-admin-dev-secret',
 };
