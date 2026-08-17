@@ -11,6 +11,10 @@ export default defineConfig({
         target: 'http://api:3000',
         changeOrigin: true,
       },
+      '/admin': {
+        target: 'http://api:3000',
+        changeOrigin: true,
+      },
       '/ws': {
         target: 'http://api:3000',
         ws: true,
