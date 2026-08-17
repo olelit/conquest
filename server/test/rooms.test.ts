@@ -850,3 +850,32 @@ describe('Room: большинство — решение игрока', () => {
     expect(g.winnerId).toBeNull();
   });
 });
+
+describe('Room: дамп состояния', () => {
+  it('dumpState возвращает полный сырой стейт', () => {
+    const room = new Room(7, 'Дамп', 'normal', 6, true, 2, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.players[0].points = 1234;
+    g.hexes[1].attackerId = 2;
+    g.hexes[1].attackInvestment = 300;
+    g.hexes[2].fortress = true;
+    rules.declareWar(g, 1, 2);
+    const dump = room.dumpState();
+    expect(dump.room.id).toBe(7);
+    expect(dump.room.mapType).toBe('normal');
+    expect(dump.room.status).toBe('playing');
+    expect(dump.room.aiMode).toBe(true);
+    expect(dump.players).toHaveLength(3);
+    expect(dump.players.find((p) => p.id === 1)!.points).toBe(1234);
+    expect(dump.hexes).toHaveLength(192);
+    expect(dump.hexes.find((h) => h.attackerId === 2)).toBeDefined();
+    expect(dump.hexes.some((h) => h.fortress)).toBe(true);
+    expect(dump.diplomacy['1-2']).toBe('war');
+    expect(dump.slots).toHaveLength(3);
+    expect(dump.log.length).toBeGreaterThan(0);
+  });
+});

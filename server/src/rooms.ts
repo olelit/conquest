@@ -6,6 +6,7 @@ import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
 import { config, type Difficulty } from './config.js';
 import { GameStatsRecorder } from './stats.js';
+import { dumpsRepository } from './db.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -60,6 +61,34 @@ export interface RoomView {
   paused: boolean;
   game: ViewGame | null;
   log: LogEntry[];
+}
+
+export interface RoomDump {
+  room: {
+    id: number;
+    name: string;
+    mapType: MapType;
+    maxPlayers: number;
+    aiMode: boolean;
+    aiCount: number;
+    difficulty: Difficulty;
+    loadTest: boolean;
+    training: boolean;
+    status: RoomStatus;
+    hostPlayerId: number | null;
+    paused: boolean;
+    startedAt: number;
+    tickCounter: number;
+  };
+  winnerId: number | null;
+  players: PlayerState[];
+  hexes: HexState[];
+  diplomacy: Record<string, rules.DiplomacyRelation>;
+  pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[];
+  majorityHolderId: number | null;
+  slots: RoomSlot[];
+  log: LogEntry[];
+  attackStartedAt: Record<string, number>;
 }
 
 export type ActionResult = { type: 'state' } | { type: 'error'; message: string };
@@ -663,6 +692,43 @@ export class Room {
     };
   }
 
+  dumpState(): RoomDump {
+    const state = this.state;
+    const diplomacy: Record<string, rules.DiplomacyRelation> = {};
+    if (state?.diplomacy) {
+      for (const [key, rel] of state.diplomacy) diplomacy[key] = rel;
+    }
+    const attackStartedAt: Record<string, number> = {};
+    for (const [key, t] of this.attackStartedAt) attackStartedAt[key] = t;
+    return {
+      room: {
+        id: this.id,
+        name: this.name,
+        mapType: this.mapType,
+        maxPlayers: this.maxPlayers,
+        aiMode: this.aiMode,
+        aiCount: this.aiCount,
+        difficulty: this.difficulty,
+        loadTest: this.loadTest,
+        training: this.training,
+        status: this.status,
+        hostPlayerId: this.hostPlayerId,
+        paused: this.paused,
+        startedAt: this.startedAt,
+        tickCounter: this.tickCounter,
+      },
+      winnerId: state?.winnerId ?? null,
+      players: state?.players ?? [],
+      hexes: state?.hexes ?? [],
+      diplomacy,
+      pendingProposals: this.pendingProposals.map((p) => ({ ...p })),
+      majorityHolderId: this.majorityHolderId,
+      slots: this.slots.map((s) => ({ ...s })),
+      log: this.log.map((l) => ({ ...l })),
+      attackStartedAt,
+    };
+  }
+
   private nextSlotId(): number {
     return Math.max(0, ...this.slots.map((s) => s.id)) + 1;
   }
@@ -893,6 +959,24 @@ export class RoomManager {
     const room = this.roomForConn(connId);
     if (!room) return { type: 'error', message: "You're not in a room" };
     return room.handleAction(connId, msg.type, msg);
+  }
+
+  async dumpRoom(roomId: number, note?: string): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+    const room = this.rooms.get(roomId);
+    if (!room) return { ok: false, error: 'Room not found' };
+    try {
+      const id = await dumpsRepository.save({
+        roomId: room.id,
+        roomName: room.name,
+        mapType: room.mapType,
+        note: note ?? null,
+        state: room.dumpState(),
+      });
+      return { ok: true, id };
+    } catch (err) {
+      console.error('dump save failed:', err);
+      return { ok: false, error: 'Failed to save dump' };
+    }
   }
 
   lobby(): RoomLobbyInfo[] {

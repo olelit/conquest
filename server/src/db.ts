@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Column, DataSource, Entity, PrimaryColumn, Repository } from 'typeorm';
+import { Column, DataSource, Entity, PrimaryColumn, PrimaryGeneratedColumn, Repository } from 'typeorm';
 
 @Entity('players')
 export class PlayerEntity {
@@ -41,6 +41,60 @@ export class PlayersRepository {
   }
 }
 
+@Entity('game_dumps')
+export class GameDumpEntity {
+  @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
+  id!: number;
+
+  @Column({ name: 'room_id', type: 'int' })
+  roomId!: number;
+
+  @Column({ name: 'room_name', type: 'text' })
+  roomName!: string;
+
+  @Column({ name: 'map_type', type: 'text' })
+  mapType!: string;
+
+  @Column({ name: 'note', type: 'text', nullable: true })
+  note!: string | null;
+
+  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
+  createdAt!: Date;
+
+  @Column({ name: 'state', type: 'jsonb' })
+  state!: unknown;
+}
+
+export class DumpsRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  private repo(): Repository<GameDumpEntity> {
+    return this.dataSource.getRepository(GameDumpEntity);
+  }
+
+  async save(dump: { roomId: number; roomName: string; mapType: string; note: string | null; state: unknown }): Promise<number> {
+    const entity = await this.repo().save({
+      roomId: dump.roomId,
+      roomName: dump.roomName,
+      mapType: dump.mapType,
+      note: dump.note ?? null,
+      state: dump.state,
+    });
+    return entity.id;
+  }
+
+  async list(): Promise<{ id: number; roomId: number; roomName: string; mapType: string; note: string | null; createdAt: Date }[]> {
+    return this.repo().find({
+      order: { id: 'DESC' },
+      select: ['id', 'roomId', 'roomName', 'mapType', 'note', 'createdAt'],
+    });
+  }
+
+  async findById(id: number): Promise<GameDumpEntity | null> {
+    return this.repo().findOneBy({ id });
+  }
+}
+
 export const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.PGHOST ?? 'localhost',
@@ -48,11 +102,12 @@ export const dataSource = new DataSource({
   username: process.env.PGUSER ?? 'conquest',
   password: process.env.PGPASSWORD ?? 'conquest',
   database: process.env.PGDATABASE ?? 'conquest_db',
-  entities: [PlayerEntity],
+  entities: [PlayerEntity, GameDumpEntity],
   synchronize: true,
 });
 
 export const playersRepository = new PlayersRepository(dataSource);
+export const dumpsRepository = new DumpsRepository(dataSource);
 
 export async function initDb(): Promise<void> {
   await dataSource.initialize();
