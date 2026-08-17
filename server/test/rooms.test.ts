@@ -553,6 +553,7 @@ describe('Room: дипломатия', () => {
     expect(result.type).toBe('state');
     room.tick();
     expect(rules.relation(g, 1, ai.id)).toBe('peace');
+    expect(room.view(1).log.find((l) => l.text.includes('made peace'))?.kind).toBe('diplomacy');
   });
   it('предложение союза: ИИ отклоняет при слабом игроке', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
