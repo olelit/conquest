@@ -109,7 +109,7 @@ export class GraphStore {
   async related(name: string): Promise<RelatedResult> {
     const rows = await this.run(
       `MATCH (e:Entity {name: $name})
-       OPTIONAL MATCH (e)-[rel]-(peer)
+       OPTIONAL MATCH (e)-[rel:REL]-(peer:Entity)
        OPTIONAL MATCH (e)-[:RECALLS]->(m:Memory)
        RETURN e.name AS entity,
               collect(DISTINCT {peer: peer.name, rel: type(rel)}) AS relations,

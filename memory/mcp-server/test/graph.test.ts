@@ -71,7 +71,13 @@ describe('GraphStore', () => {
     expect(out.entity).toBe('Conquest');
     expect(out.relations).toEqual([{ peer: 'Vue 3', rel: 'depends_on' }]);
     expect(out.memories).toEqual(['Проект на Vue 3']);
+  });
+
+  it('related ищет только REL между сущностями', async () => {
+    const { store, calls } = fakeStore(() => []);
+    await store.related('Conquest');
     const call = calls.find((c) => c.q.includes('OPTIONAL MATCH'))!;
-    expect(call.q).toContain('(e)-[:RECALLS]->(m:Memory)');
+    expect(call.q).toContain('(e)-[rel:REL]-(peer:Entity)');
+    expect(call.q).not.toContain('(e)-[rel]-(peer)');
   });
 });
