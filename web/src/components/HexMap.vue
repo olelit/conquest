@@ -11,6 +11,8 @@ const emit = defineEmits<{
 }>();
 
 const HEX_SIZE = 30;
+// Иконка боя: две скрещенные сабли по центру гекса, сдвиг вверх
+const SWORD_DY = 5;
 const SQRT3 = Math.sqrt(3);
 const PADDING = 20;
 // Невидимая зона вокруг карты: её можно двигать, даже когда зум отсутствует,
@@ -347,6 +349,12 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
             :height="battleOverlay(hex)!.height"
           />
         </clipPath>
+        <g id="hex-sword">
+          <path d="M 0 -13 L 1.4 -7 L 0.7 -1 L -0.7 -1 L -1.4 -7 Z" />
+          <path d="M -3.5 -0.5 L 3.5 -0.5 L 3.5 0.5 L -3.5 0.5 Z" />
+          <path d="M -0.6 0.5 L 0.6 0.5 L 0.6 3.2 L -0.6 3.2 Z" />
+          <circle cx="0" cy="4.1" r="0.9" />
+        </g>
       </defs>
       <g
         v-for="hex in props.hexes"
@@ -397,6 +405,14 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           :stroke="colorOf(captureState(hex)!.byId)"
           class="hex-capture-ring"
         />
+        <g
+          v-if="hex.attackerId !== null"
+          :transform="`translate(${hexCenter(hex.q, hex.r).x} ${hexCenter(hex.q, hex.r).y - SWORD_DY})`"
+          class="hex-swords"
+        >
+          <use href="#hex-sword" transform="rotate(45)" />
+          <use href="#hex-sword" transform="rotate(-45)" />
+        </g>
       </g>
       </g>
     </svg>
@@ -496,6 +512,13 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 .hex-capture-ring {
   fill: none;
   stroke-width: 3;
+  pointer-events: none;
+}
+
+.hex-swords {
+  fill: #ffd54f;
+  stroke: #1a1a1a;
+  stroke-width: 1.4;
   pointer-events: none;
 }
 
