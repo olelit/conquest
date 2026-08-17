@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import neo4j from 'neo4j-driver';
 import { GraphStore, type Row, type Runner } from '../src/graph.js';
 
 function fakeStore(
@@ -52,21 +53,25 @@ describe('GraphStore', () => {
       { text: 'Крепость защищает гекс', kind: 'fact', project: 'conquest', createdAt: '2026-08-17', score: 1.2 },
       { text: 'Вторая', kind: 'note', project: null, createdAt: null, score: 0.4 },
     ];
-    const { store } = fakeStore(() => rows);
+    const { store, calls } = fakeStore(() => rows);
     const out = await store.search('крепость');
     expect(out).toHaveLength(2);
     expect(out[0].text).toBe('Крепость защищает гекс');
     expect(out[0].score).toBe(1.2);
     expect(out[1].project).toBeNull();
+    const call = calls.find((c) => c.q.includes('LIMIT $limit'))!;
+    expect(neo4j.isInt(call.p['limit'])).toBe(true);
   });
 
   it('related возвращает сущность, связи и воспоминания', async () => {
-    const { store } = fakeStore(() => [
+    const { store, calls } = fakeStore(() => [
       { entity: 'Conquest', relations: [{ peer: 'Vue 3', rel: 'depends_on' }], memories: ['Проект на Vue 3'] },
     ]);
     const out = await store.related('Conquest');
     expect(out.entity).toBe('Conquest');
     expect(out.relations).toEqual([{ peer: 'Vue 3', rel: 'depends_on' }]);
     expect(out.memories).toEqual(['Проект на Vue 3']);
+    const call = calls.find((c) => c.q.includes('OPTIONAL MATCH'))!;
+    expect(call.q).toContain('(e)-[:RECALLS]->(m:Memory)');
   });
 });

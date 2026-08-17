@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Driver, Session } from 'neo4j-driver';
+import neo4j, { type Driver, type Session } from 'neo4j-driver';
 
 export interface MemoryInput {
   text: string;
@@ -95,7 +95,7 @@ export class GraphStore {
               node.createdAt AS createdAt, score
        ORDER BY score DESC
        LIMIT $limit`,
-      { q: query, project: project ?? null, limit },
+      { q: query, project: project ?? null, limit: neo4j.int(limit) },
     );
     return rows.map((r) => ({
       text: String(r.text),
@@ -110,7 +110,7 @@ export class GraphStore {
     const rows = await this.run(
       `MATCH (e:Entity {name: $name})
        OPTIONAL MATCH (e)-[rel]-(peer)
-       OPTIONAL MATCH (e)-[:ABOUT]->(m:Memory)
+       OPTIONAL MATCH (e)-[:RECALLS]->(m:Memory)
        RETURN e.name AS entity,
               collect(DISTINCT {peer: peer.name, rel: type(rel)}) AS relations,
               collect(DISTINCT m.text) AS memories`,
