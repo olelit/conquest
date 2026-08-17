@@ -1,12 +1,193 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <title>Conquest Admin</title>
-  <style>body { background: #14141a; color: #eee; font-family: sans-serif; padding: 24px; }</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conquest Admin</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #14141a; color: #eee; font-family: system-ui, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; color: #bbb; }
+  .card { background: #1e1e24; border: 1px solid #333; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #2a2a31; }
+  th { color: #999; font-weight: 600; }
+  button { background: #2196f3; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  button.ghost { background: #2a2a31; border: 1px solid #555; }
+  button:hover { filter: brightness(1.15); }
+  input { background: #14141a; border: 1px solid #555; color: #fff; border-radius: 6px; padding: 8px; font-size: 13px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: #2a2a31; }
+  .badge.playing { background: #2e7d32; }
+  .badge.waiting { background: #555; }
+  .err { color: #ff6b6b; }
+  .ok { color: #69db7c; }
+  pre { background: #0d0d12; border: 1px solid #333; border-radius: 8px; padding: 10px; overflow: auto; max-height: 70vh; font-size: 12px; }
+  .note { color: #999; font-size: 12px; }
+</style>
 </head>
 <body>
+<div class="wrap">
   <h1>Conquest Admin</h1>
-  <p>Заглушка. Полная панель появится в Task 6.</p>
+  <div id="view"></div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+let statusTimer = null;
+let selectedDump = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (res.status === 401) throw new Error('UNAUTHORIZED');
+  return res.json();
+}
+
+async function refreshMe() {
+  return api('/api/admin/me');
+}
+
+function renderLogin() {
+  $('#view').innerHTML = `
+    <div class="card" style="max-width:340px">
+      <h2>Вход</h2>
+      <div class="row" style="flex-direction:column;align-items:stretch">
+        <input id="u" placeholder="Логин" autocomplete="username">
+        <input id="p" type="password" placeholder="Пароль" autocomplete="current-password">
+        <button id="login">Войти</button>
+      </div>
+      <div id="err" class="err"></div>
+    </div>`;
+  $('#login').onclick = async () => {
+    const u = $('#u').value.trim();
+    const p = $('#p').value;
+    const r = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
+    if (!r.ok) { $('#err').textContent = 'Неверный логин или пароль'; return; }
+    boot();
+  };
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function renderStatus(data) {
+  $('#online').textContent = String(data.online);
+  const rows = data.players.map((p) => `
+    <tr>
+      <td>${esc(p.name)}</td>
+      <td>${p.email ? esc(p.email) : '—'}</td>
+      <td>${p.roomName ? esc(p.roomName) + ' <span class="badge ' + p.roomStatus + '">' + p.roomStatus + '</span>' : 'лобби'}</td>
+      <td>${p.isHost ? 'хост' : ''}</td>
+      <td>${new Date(p.connectedAt).toLocaleTimeString()}</td>
+    </tr>`).join('');
+  $('#players').innerHTML = rows || '<tr><td colspan="5" class="note">Нет подключений</td></tr>';
+
+  const rooms = data.rooms.map((r) => `
+    <div class="card">
+      <div class="row">
+        <strong>${esc(r.name)}</strong>
+        <span class="badge ${r.status}">${r.status}</span>
+        <span class="badge">${esc(r.mapType)}</span>
+        <span class="note">люди: ${r.humans} / слотов: ${r.slots}${r.aiMode ? ' · ИИ' : ''}${r.paused ? ' · пауза' : ''}</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="note-${r.id}" placeholder="Заметка (необязательно)" style="flex:1;min-width:200px">
+        <button class="ghost" data-dump="${r.id}">Дамп</button>
+      </div>
+      <div id="msg-${r.id}" class="note"></div>
+    </div>`).join('');
+  $('#rooms').innerHTML = rooms || '<p class="note">Нет комнат</p>';
+  document.querySelectorAll('[data-dump]').forEach((btn) => {
+    btn.onclick = async () => {
+      const id = Number(btn.dataset.dump);
+      const note = $('#note-' + id).value.trim();
+      const msg = $('#msg-' + id);
+      msg.className = 'note';
+      msg.textContent = 'Сохранение…';
+      try {
+        const r = await api('/api/admin/rooms/' + id + '/dump', { method: 'POST', body: JSON.stringify({ note }) });
+        if (r.ok) { msg.className = 'ok'; msg.textContent = 'Сохранено (id=' + r.id + ')'; loadDumps(); }
+        else { msg.className = 'err'; msg.textContent = r.error; }
+      } catch (e) { msg.className = 'err'; msg.textContent = 'Ошибка'; }
+    };
+  });
+}
+
+function renderRoomsHeader() {
+  $('#rooms').innerHTML = '<p class="note">…</p>';
+}
+
+async function loadDumps() {
+  try {
+    const r = await api('/api/admin/dumps');
+    const list = r.dumps || [];
+    $('#dumps').innerHTML = list.map((d) => `
+      <tr>
+        <td>#${d.id}</td>
+        <td>${esc(d.roomName)}</td>
+        <td>${esc(d.mapType)}</td>
+        <td>${d.note ? esc(d.note) : '—'}</td>
+        <td>${new Date(d.createdAt).toLocaleString()}</td>
+        <td><button class="ghost" data-view="${d.id}">Открыть</button></td>
+      </tr>`).join('') || '<tr><td colspan="6" class="note">Дампов нет</td></tr>';
+    document.querySelectorAll('[data-view]').forEach((btn) => {
+      btn.onclick = async () => {
+        const r = await api('/api/admin/dumps/' + btn.dataset.view);
+        selectedDump = r.dump;
+        $('#dump-view').innerHTML = '<pre>' + esc(JSON.stringify(r.dump, null, 2)) + '</pre>';
+        $('#dump-view').scrollIntoView();
+      };
+    });
+  } catch (e) { /* 401 обрабатывается в poll */ }
+}
+
+function renderDashboard() {
+  $('#view').innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <h2 id="welcome">Панель администратора</h2>
+      <button class="ghost" id="logout">Выйти</button>
+    </div>
+    <h2>Игроки онлайн: <span id="online">0</span></h2>
+    <div class="card"><table><thead><tr><th>Имя</th><th>Email</th><th>Комната</th><th>Роль</th><th>Соединён</th></tr></thead><tbody id="players"></tbody></table></div>
+    <h2>Комнаты</h2>
+    <div id="rooms"></div>
+    <h2>Дампы</h2>
+    <div class="card"><table><thead><tr><th>#</th><th>Комната</th><th>Карта</th><th>Заметка</th><th>Когда</th><th></th></tr></thead><tbody id="dumps"></tbody></table></div>
+    <div id="dump-view"></div>`;
+  $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); stopPoll(); boot(); };
+  renderStatus({ online: 0, players: [], rooms: [] });
+  renderRoomsHeader();
+  loadDumps();
+  poll();
+}
+
+function poll() {
+  if (statusTimer) clearInterval(statusTimer);
+  const tick = async () => {
+    try {
+      const r = await api('/api/admin/status');
+      if (r && Array.isArray(r.players)) renderStatus(r);
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { stopPoll(); boot(); }
+    }
+  };
+  tick();
+  statusTimer = setInterval(tick, 2000);
+}
+
+function stopPoll() {
+  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+}
+
+async function boot() {
+  let me;
+  try { me = await refreshMe(); } catch { me = { authenticated: false }; }
+  if (me.authenticated) renderDashboard();
+  else renderLogin();
+}
+
+boot();
+</script>
 </body>
 </html>

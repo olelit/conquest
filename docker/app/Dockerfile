@@ -19,5 +19,6 @@ ENV NODE_ENV=production
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/public ./public
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
