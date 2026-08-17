@@ -6,6 +6,7 @@ import FpsOverlay from './components/FpsOverlay.vue';
 import HexMap from './components/HexMap.vue';
 import Hud from './components/Hud.vue';
 import { GameClient } from './api';
+import { adminDumpRoom, adminMe } from './admin';
 import { t, lang, setLang } from './i18n';
 import { STAGE_ORDER, continueTutorial, initTraining, observeTraining, stopTraining, taskDone, trainingStage, type TrainingStage } from './training';
 import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Difficulty, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
@@ -50,6 +51,8 @@ const createMapType = ref<MapType>('normal');
 const createMaxPlayers = ref(5);
 const loadTestPlayers = ref(10);
 const victoryDismissed = ref(false);
+const isAdmin = ref(false);
+const dumpMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
 const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
@@ -125,6 +128,23 @@ watch(
   () => room.value?.status,
   () => closeContextMenu(),
 );
+
+watch(
+  () => burgerOpen.value,
+  (open) => {
+    if (open) {
+      adminMe().then((m) => {
+        isAdmin.value = m.authenticated;
+      });
+    }
+  },
+);
+
+onMounted(() => {
+  adminMe().then((m) => {
+    isAdmin.value = m.authenticated;
+  });
+});
 
 function trainingCtl(): { sendPause: () => void; isPaused: () => boolean } {
   return { sendPause: () => client.sendPause(), isPaused: () => room.value?.paused ?? false };
@@ -337,6 +357,20 @@ function onRestart(): void {
   if (room.value?.training) {
     initTraining(trainingCtl());
   }
+}
+
+async function onDumpGame(): Promise<void> {
+  if (!room.value) return;
+  const note = window.prompt(t('burger.dumpNote'), '') ?? '';
+  const result = await adminDumpRoom(room.value.id, note.trim());
+  if (result.ok) {
+    dumpMsg.value = { kind: 'ok', text: t('dump.saved', { id: result.id }) };
+  } else {
+    dumpMsg.value = { kind: 'err', text: t('dump.failed', { error: result.error }) };
+  }
+  window.setTimeout(() => {
+    dumpMsg.value = null;
+  }, 6000);
 }
 
 function goToMenu(): void {
@@ -564,6 +598,7 @@ onBeforeUnmount(() => {
         <div v-else-if="winner" class="banner banner--win banner--center">{{ t('banner.victory', { name: winner }) }}</div>
         <div v-else-if="!connected" class="banner banner--warn">{{ t('banner.connecting') }}</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
+        <div v-if="dumpMsg" class="banner" :class="dumpMsg.kind === 'ok' ? 'banner--warn' : 'banner--error'">{{ dumpMsg.text }}</div>
         <div v-if="showVictoryModal" class="victory-modal">
           <div class="victory-modal__card">
             <div class="victory-modal__title">{{ t('victory.title') }}</div>
@@ -622,6 +657,7 @@ onBeforeUnmount(() => {
     <div v-if="burgerOpen" class="burger-overlay" @click.self="burgerOpen = false">
       <div class="burger-menu">
         <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">{{ t('burger.restart') }}</button>
+        <button v-if="isAdmin && room" class="burger-menu__item" @click="onDumpGame">{{ t('burger.dumpGame') }}</button>
         <button class="burger-menu__item" @click="onToMenu">{{ t('burger.toMenu') }}</button>
       </div>
     </div>

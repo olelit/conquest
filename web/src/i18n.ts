@@ -102,6 +102,10 @@ const messages: Record<Lang, Record<string, string>> = {
     'training.diplomacyHint': 'Right-click an enemy hex and propose peace or alliance, or declare war',
     'training.doneHint': 'Tutorial complete! The game continues.',
     'training.ok': 'OK',
+    'burger.dumpGame': 'Save state to DB',
+    'burger.dumpNote': 'Note (optional)',
+    'dump.saved': 'State saved (id={id})',
+    'dump.failed': 'Dump failed: {error}',
   },
   ru: {
     'menu.subtitle': 'Выбери режим игры',
@@ -202,6 +206,10 @@ const messages: Record<Lang, Record<string, string>> = {
     'training.diplomacyHint': 'ПКМ по вражескому гексу: предложи мир или союз, либо объяви войну',
     'training.doneHint': 'Обучение завершено! Игра продолжается.',
     'training.ok': 'Ок',
+    'burger.dumpGame': 'Сохранить состояние в БД',
+    'burger.dumpNote': 'Комментарий (необязательно)',
+    'dump.saved': 'Состояние сохранено (id={id})',
+    'dump.failed': 'Ошибка дампа: {error}',
   },
 };
 
