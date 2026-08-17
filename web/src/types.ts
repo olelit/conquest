@@ -19,10 +19,21 @@ export const MAP_INFO: Record<MapType, MapInfo> = {
   round: { labelKey: 'map.round', descriptionKey: 'map.roundDesc', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
 };
 
-export const PLAYER_COLORS = ['#9c27b0', '#e53935', '#00897b', '#fb8c00', '#1e88e5', '#43a047'];
+const paletteCache = new Map<string, Map<number, string>>();
 
-export function playerColor(playerId: number): string {
-  return PLAYER_COLORS[(playerId - 1) % PLAYER_COLORS.length];
+export function playerPalette(ids: readonly number[]): Map<number, string> {
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  const key = sorted.join(',');
+  const cached = paletteCache.get(key);
+  if (cached) return cached;
+  const count = Math.max(sorted.length, 1);
+  const map = new Map<number, string>();
+  sorted.forEach((id, i) => {
+    const hue = ((i * 360) / count + 12) % 360;
+    map.set(id, `hsl(${Math.round(hue)}, 85%, 55%)`);
+  });
+  paletteCache.set(key, map);
+  return map;
 }
 
 export interface Hex {
@@ -61,6 +72,7 @@ export interface GameState {
   players: Player[];
   hexes: Hex[];
   winnerId: number | null;
+  majorityHolderId: number | null;
   captureTicks: number;
   pendingProposals: PendingProposal[];
 }
@@ -100,6 +112,7 @@ export type ClientMessage =
   | { type: 'attack'; q: number; r: number; points: number }
   | { type: 'defend'; q: number; r: number; points: number }
   | { type: 'pause' }
+  | { type: 'end-game' }
   | { type: 'restart' }
   | { type: 'menu' }
   | { type: 'leave-room' }

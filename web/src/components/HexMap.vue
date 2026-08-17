@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { t } from '../i18n';
-import { playerColor, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
+import { playerPalette, isAdjacent, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
 const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number; menuOpen?: boolean }>();
 
@@ -239,9 +239,48 @@ const hovered = computed(() => {
   return props.hexes.find((h) => h.q === hoveredPos.value!.q && h.r === hoveredPos.value!.r) ?? null;
 });
 
+const palette = computed(() => playerPalette(props.players.map((p) => p.id)));
+
+const protectedHexes = computed(() => {
+  const set = new Set<string>();
+  for (const h of props.hexes) {
+    if (!h.fortress || h.ownerId === null) continue;
+    set.add(`${h.q},${h.r}`);
+    for (const n of props.hexes) {
+      if (n.ownerId === h.ownerId && isAdjacent(h, n)) set.add(`${n.q},${n.r}`);
+    }
+  }
+  return set;
+});
+
+function isProtected(hex: Hex): boolean {
+  return protectedHexes.value.has(`${hex.q},${hex.r}`);
+}
+
+function shieldPoints(q: number, r: number): { x: number; y: number; points: string } {
+  const { x, y } = hexCenter(q, r);
+  const sx = 7;
+  const top = 11;
+  const bottom = 11;
+  return {
+    x,
+    y,
+    points: [
+      `${x},${y - top}`,
+      `${x + sx},${y - top + 2.5}`,
+      `${x + sx},${y - 2.5}`,
+      `${x + sx * 0.55},${y + 1}`,
+      `${x},${y + bottom}`,
+      `${x - sx * 0.55},${y + 1}`,
+      `${x - sx},${y - 2.5}`,
+      `${x - sx},${y - top + 2.5}`,
+    ].join(' '),
+  };
+}
+
 function colorOf(id: number | null): string {
   if (id === null) return '#999';
-  return playerColor(id);
+  return palette.value.get(id) ?? '#607d8b';
 }
 
 function playerName(id: number | null): string {
@@ -326,17 +365,22 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           :class="{ 'hex-flash': flashKeys.has(hex.q + ',' + hex.r) }"
           class="hex-tint"
         />
+        <polygon
+          v-if="isProtected(hex)"
+          :points="shieldPoints(hex.q, hex.r).points"
+          class="hex-shield"
+        />
         <text
           v-if="capitalPlayer(hex)"
           :x="hexCenter(hex.q, hex.r).x"
-          :y="hexCenter(hex.q, hex.r).y + 11"
+          :y="hexCenter(hex.q, hex.r).y"
           text-anchor="middle"
           class="hex-capital"
         >★</text>
         <text
           v-if="hex.fortress"
           :x="hexCenter(hex.q, hex.r).x"
-          :y="hexCenter(hex.q, hex.r).y - 11"
+          :y="hexCenter(hex.q, hex.r).y"
           text-anchor="middle"
           class="hex-fortress"
         >⚑</text>
@@ -431,14 +475,14 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 }
 
 .hex-tint {
-  fill-opacity: 0.5;
+  fill-opacity: 0.7;
   stroke-opacity: 1;
   stroke-width: 3.5;
   pointer-events: none;
 }
 
 .hex-group:hover .hex-tint {
-  fill-opacity: 0.65;
+  fill-opacity: 0.85;
   stroke-width: 4.5;
 }
 
@@ -463,8 +507,15 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
   pointer-events: none;
 }
 
+.hex-shield {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: #1a1a1a;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+
 .hex-fortress {
-  font-size: 24px;
+  font-size: 22px;
   fill: #ffb74d;
   stroke: #1a1a1a;
   stroke-width: 1.5;

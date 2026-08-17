@@ -43,6 +43,10 @@ export class GameClient {
     this.send({ type: 'pause' });
   }
 
+  sendEndGame(): void {
+    this.send({ type: 'end-game' });
+  }
+
   sendRestart(): void {
     this.send({ type: 'restart' });
   }

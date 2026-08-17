@@ -49,6 +49,7 @@ const aiDifficulty = ref<Difficulty>('medium');
 const createMapType = ref<MapType>('normal');
 const createMaxPlayers = ref(5);
 const loadTestPlayers = ref(10);
+const victoryDismissed = ref(false);
 
 const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
@@ -65,6 +66,16 @@ const defeated = computed(() => {
 });
 const isHost = computed(() => room.value !== null && room.value.hostPlayerId === playerId.value);
 const showPause = computed(() => room.value?.aiMode === true);
+const showVictoryModal = computed(() => {
+  const g = game.value;
+  return (
+    g !== null &&
+    g.winnerId === null &&
+    g.majorityHolderId !== null &&
+    g.majorityHolderId === playerId.value &&
+    !victoryDismissed.value
+  );
+});
 const STAGE_META: Record<TrainingStage, { titleKey: string; hintKey: string }> = {
   capture: { titleKey: 'training.captureTitle', hintKey: 'training.captureHint' },
   attack: { titleKey: 'training.attackTitle', hintKey: 'training.attackHint' },
@@ -96,7 +107,22 @@ watch(createMapType, () => {
 });
 
 watch(
-  () => room.value,
+  () => room.value?.id,
+  () => {
+    closeContextMenu();
+    victoryDismissed.value = false;
+  },
+);
+
+watch(
+  () => game.value?.majorityHolderId,
+  (v) => {
+    if (v === null) victoryDismissed.value = false;
+  },
+);
+
+watch(
+  () => room.value?.status,
   () => closeContextMenu(),
 );
 
@@ -298,6 +324,10 @@ function onArmyChange(points: number): void {
 
 function onPause(): void {
   client.sendPause();
+}
+
+function onEndGame(): void {
+  client.sendEndGame();
 }
 
 function onRestart(): void {
@@ -524,17 +554,25 @@ onBeforeUnmount(() => {
           <h1>{{ room.name }}</h1>
           <div class="app__controls">
             <span v-if="room?.training" class="training-badge">{{ t('training.badge') }}</span>
-            <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause">
-              {{ room.paused ? t('menu.resume') : t('menu.pause') }}
+            <button v-if="showPause" class="app__btn" :disabled="!connected" @click="onPause" :title="room.paused ? t('menu.resume') : t('menu.pause')">
+              {{ room.paused ? '▶' : '⏸' }}
             </button>
             <button class="app__btn app__burger" @click="burgerOpen = !burgerOpen">☰</button>
           </div>
         </div>
-        <div v-if="room.paused && !winner" class="banner banner--pause">{{ t('banner.paused') }}</div>
         <div v-if="winner && defeated" class="banner banner--error banner--center">{{ t('banner.defeat', { name: winner }) }}</div>
         <div v-else-if="winner" class="banner banner--win banner--center">{{ t('banner.victory', { name: winner }) }}</div>
         <div v-else-if="!connected" class="banner banner--warn">{{ t('banner.connecting') }}</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
+        <div v-if="showVictoryModal" class="victory-modal">
+          <div class="victory-modal__card">
+            <div class="victory-modal__title">{{ t('victory.title') }}</div>
+            <div class="victory-modal__actions">
+              <button class="victory-modal__btn" @click="onEndGame">{{ t('victory.endGame') }}</button>
+              <button class="victory-modal__btn victory-modal__btn--ghost" @click="victoryDismissed = true">{{ t('victory.keepPlaying') }}</button>
+            </div>
+          </div>
+        </div>
         <div v-if="trainingStage && !winner && !defeated" class="training-overlay">
           <div class="training-card">
             <div class="training-card__title">{{ t('training.stageN', { n: trainingIndex, name: t(trainingTitleKey) }) }}</div>
@@ -901,11 +939,6 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-.banner--pause {
-  background: #6a1b9a;
-  color: #fff;
-}
-
 .banner--error {
   background: #c62828;
   color: #fff;
@@ -920,6 +953,57 @@ onBeforeUnmount(() => {
   font-size: 26px;
   padding: 14px 34px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+
+.victory-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 70;
+}
+
+.victory-modal__card {
+  background: rgba(20, 20, 26, 0.96);
+  border: 1px solid #888;
+  border-radius: 12px;
+  padding: 26px 34px;
+  text-align: center;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.6);
+}
+
+.victory-modal__title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+
+.victory-modal__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.victory-modal__btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  background: #2e7d32;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.victory-modal__btn--ghost {
+  background: transparent;
+  border: 1px solid #888;
+  color: inherit;
+}
+
+.victory-modal__btn:hover {
+  filter: brightness(1.15);
 }
 
 .log-panel {

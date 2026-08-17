@@ -172,4 +172,31 @@ describe('chooseAiAction', () => {
     declareWar(s, AI, 3);
     expect(chooseAiAction(s, AI)).toEqual({ type: 'attack', q: 5, r: 4, points: 150 });
   });
+  it('приоритет 4: избегает тонкого выступа в 1 клетку — предпочитает компактное расширение', () => {
+    const s = makeState([
+      { q: 2, r: 1, ownerId: AI },
+      { q: 2, r: 2, ownerId: AI },
+      { q: 5, r: 7, ownerId: AI },
+      { q: 5, r: 8, ownerId: AI },
+      { q: 6, r: 8, ownerId: AI },
+      { q: 12, r: 3, ownerId: P },
+      { q: 1, r: 1, terrain: 'water' },
+      { q: 3, r: 1, terrain: 'water' },
+      { q: 2, r: 0, terrain: 'water' },
+      { q: 3, r: 0, terrain: 'water' },
+      { q: 1, r: 2, terrain: 'water' },
+      { q: 3, r: 2, terrain: 'water' },
+      { q: 1, r: 3, terrain: 'water' },
+      { q: 4, r: 7, terrain: 'water' },
+      { q: 5, r: 6, terrain: 'water' },
+      { q: 6, r: 6, terrain: 'water' },
+      { q: 4, r: 8, terrain: 'water' },
+      { q: 4, r: 9, terrain: 'water' },
+      { q: 5, r: 9, terrain: 'water' },
+      { q: 7, r: 8, terrain: 'water' },
+      { q: 6, r: 9, terrain: 'water' },
+      { q: 7, r: 7, terrain: 'water' },
+    ]);
+    expect(chooseAiAction(s, AI)).toEqual({ type: 'capture', q: 6, r: 7 });
+  });
 });

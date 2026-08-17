@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { t } from '../i18n';
 import { computed } from 'vue';
-import { playerColor, type GameState, type Player } from '../types';
+import { playerPalette, type GameState, type Player } from '../types';
 
 const props = defineProps<{ game: GameState; humanId: number | null; army: number }>();
+
+const palette = computed(() => playerPalette(props.game.players.map((p) => p.id)));
 
 const players = computed(() => {
   if (props.humanId === null) return props.game.players;
@@ -13,7 +15,7 @@ const players = computed(() => {
 });
 
 function colorOf(p: Player): string {
-  return playerColor(p.id);
+  return palette.value.get(p.id) ?? '#607d8b';
 }
 
 function pointsText(p: Player): string {

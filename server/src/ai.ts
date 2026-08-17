@@ -10,6 +10,7 @@ import {
   relation,
   terrainCost,
   type GameState,
+  type HexState,
 } from './rules.js';
 
 export type AiAction =
@@ -17,6 +18,15 @@ export type AiAction =
   | { type: 'capture'; q: number; r: number }
   | { type: 'attack'; q: number; r: number; points: number }
   | { type: 'build-fortress'; q: number; r: number };
+
+const NEIGHBOR_OFFSETS: [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, -1],
+  [-1, 1],
+];
 
 export function chooseAiAction(state: GameState, aiId: number): AiAction | null {
   const ai = state.players.find((p) => p.id === aiId);
@@ -93,7 +103,7 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
     .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
     .filter((hex) => terrainCost(hex.terrain) <= ai.points)
     .filter((hex) => !hasPeacefulNeighbor(state, hex.q, hex.r, aiId))
-    .sort((a, b) => terrainCost(a.terrain) - terrainCost(b.terrain));
+    .sort((a, b) => captureScore(state, a, aiId) - captureScore(state, b, aiId));
   if (affordableNeutral.length > 0) {
     const hex = affordableNeutral[0];
     return { type: 'capture', q: hex.q, r: hex.r };
@@ -102,16 +112,39 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
   return null;
 }
 
+function aiNeighborCount(state: GameState, q: number, r: number, aiId: number): number {
+  let count = 0;
+  for (const [dq, dr] of NEIGHBOR_OFFSETS) {
+    const neighbor = findHex(state, q + dq, r + dr);
+    if (neighbor !== undefined && neighbor.ownerId === aiId) count++;
+  }
+  return count;
+}
+
+// Расширение должно оставаться компактным: коридор шириной в одну клетку
+// сосед легко отрезает одной атакой, и отрезанный фрагмент становится нейтральным.
+// Чем дешевле результат, тем приоритетнее захват: заполнение впадин (много своих
+// соседей) удешевляется, удлинение тонких выступов — дорожает.
+function captureScore(state: GameState, hex: HexState, aiId: number): number {
+  let myNeighbors = 0;
+  let bridge: HexState | null = null;
+  for (const [dq, dr] of NEIGHBOR_OFFSETS) {
+    const neighbor = findHex(state, hex.q + dq, hex.r + dr);
+    if (neighbor !== undefined && neighbor.ownerId === aiId) {
+      myNeighbors++;
+      bridge = neighbor;
+    }
+  }
+  let score = terrainCost(hex.terrain);
+  if (myNeighbors > 1) score -= (myNeighbors - 1) * 50;
+  if (myNeighbors === 1 && bridge !== null && aiNeighborCount(state, bridge.q, bridge.r, aiId) <= 2) {
+    score += 150;
+  }
+  return score;
+}
+
 function hasAnyAdjacentOwner(state: GameState, q: number, r: number): boolean {
-  const offsets: [number, number][] = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-    [1, -1],
-    [-1, 1],
-  ];
-  for (const [dq, dr] of offsets) {
+  for (const [dq, dr] of NEIGHBOR_OFFSETS) {
     const hex = findHex(state, q + dq, r + dr);
     if (hex !== undefined && hex.ownerId !== null) return true;
   }

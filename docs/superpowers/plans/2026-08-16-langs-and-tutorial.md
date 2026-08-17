@@ -34,7 +34,7 @@
   - `RoomView.training: boolean`; `ViewGame.pendingProposals: { from; to; kind }[]` (включает и исходящие предложения зрителя).
   - ws: `start-solo` принимает опциональный `training?: boolean`.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Добавить в конец `server/test/rooms.test.ts`:
 
@@ -74,12 +74,12 @@ describe('Room: обучение', () => {
 });
 ```
 
-- [ ] **Step 2: Запустить тесты — убедиться, что падают**
+- [x] **Step 2: Запустить тесты — убедиться, что падают**
 
 Run: `cd server && npm test`
 Expected: падания по `createSolo(1, 'normal', 1, 'hard', true)` (лишний аргумент TS) и `view().training` (нет такого поля). `proposal!.to` — поле `to` ещё не в типе.
 
-- [ ] **Step 3: Реализовать**
+- [x] **Step 3: Реализовать**
 
 `server/src/rooms.ts`:
 
@@ -130,12 +130,12 @@ Expected: падания по `createSolo(1, 'normal', 1, 'hard', true)` (лиш
             const result = manager.createSolo(connId, String(message.mapType ?? '') as MapType, Number(message.aiCount), (message.difficulty ?? 'medium') as Difficulty, Boolean(message.training));
 ```
 
-- [ ] **Step 4: Запустить тесты — PASS**
+- [x] **Step 4: Запустить тесты — PASS**
 
 Run: `cd server && npm test`
 Expected: все PASS (включая 3 новых).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/rooms.ts server/src/ws.ts server/test/rooms.test.ts
@@ -157,7 +157,7 @@ git commit -m "feat: сервер помечает учебную комнату
   - `web/src/types.ts`: `RoomView.training: boolean`; `PendingProposal { from; to; kind }`; `GameState.pendingProposals: PendingProposal[]`; `ClientMessage['start-solo']` с опциональным `training`.
   - `web/src/api.ts`: `sendStartSolo(mapType, aiCount, difficulty, training = false)`.
 
-- [ ] **Step 1: Создать «Создать тест» — для клиента нет юнит-тестов**
+- [x] **Step 1: Создать «Создать тест» — для клиента нет юнит-тестов**
 
 Клиентские проверки — только `npm run build`. На этом шаге создаём модуль.
 
@@ -390,12 +390,12 @@ export function useI18n(): { t: typeof t; lang: Ref<Lang>; setLang: typeof setLa
 }
 ```
 
-- [ ] **Step 2: Проверить сборку**
+- [x] **Step 2: Проверить сборку**
 
 Run: `cd web && npm run build`
 Expected: чисто.
 
-- [ ] **Step 3: types.ts — типы**
+- [x] **Step 3: types.ts — типы**
 
 В `web/src/types.ts`:
 
@@ -422,7 +422,7 @@ export interface PendingProposal {
   | { type: 'start-solo'; mapType: MapType; aiCount: number; difficulty: Difficulty; training?: boolean }
 ```
 
-- [ ] **Step 4: api.ts — sendStartSolo**
+- [x] **Step 4: api.ts — sendStartSolo**
 
 В `web/src/api.ts` заменить метод:
 ```ts
@@ -431,12 +431,12 @@ export interface PendingProposal {
   }
 ```
 
-- [ ] **Step 5: Проверить сборку (зелёная)**
+- [x] **Step 5: Проверить сборку (зелёная)**
 
 Run: `cd web && npm run build`
 Expected: чисто (новые поля типов пока никем не читаются — не мешает).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/i18n.ts web/src/types.ts web/src/api.ts
@@ -454,7 +454,7 @@ git commit -m "feat: i18n-модуль (EN/RU) + типы training и PendingPro
 - Consumes: `t`, `lang`, `setLang` из `web/src/i18n.ts` (Task 2).
 - Produces: главное меню с переключателем EN/RU; все строки App.vue через `t()`; `MAP_INFO` c `labelKey`/`descriptionKey`.
 
-- [ ] **Step 1: types.ts — MAP_INFO → ключи**
+- [x] **Step 1: types.ts — MAP_INFO → ключи**
 
 В `web/src/types.ts` заменить `MapInfo` и `MAP_INFO`:
 ```ts
@@ -474,7 +474,7 @@ export const MAP_INFO: Record<MapType, MapInfo> = {
 };
 ```
 
-- [ ] **Step 2: App.vue — скрипт**
+- [x] **Step 2: App.vue — скрипт**
 
 1. В импортах добавить:
 ```ts
@@ -491,7 +491,7 @@ import { t, lang, setLang } from './i18n';
   if (!window.confirm(t('confirm.leave'))) return;
 ```
 
-- [ ] **Step 3: App.vue — шаблон**
+- [x] **Step 3: App.vue — шаблон**
 
 Полностью заменить блок `<template>...</template>` (от `<template>` до `</template>` перед `<style scoped>`) на:
 
@@ -676,7 +676,7 @@ import { t, lang, setLang } from './i18n';
 </template>
 ```
 
-- [ ] **Step 4: App.vue — стили переключателя**
+- [x] **Step 4: App.vue — стили переключателя**
 
 Добавить в `<style scoped>` (рядом с `.menu__waiting`, в конце блока меню-стилей):
 
@@ -701,12 +701,12 @@ import { t, lang, setLang } from './i18n';
 }
 ```
 
-- [ ] **Step 5: Проверить сборку**
+- [x] **Step 5: Проверить сборку**
 
 Run: `cd web && npm run build`
 Expected: чисто.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/App.vue web/src/types.ts
@@ -728,7 +728,7 @@ git commit -m "feat: перевод UI и переключатель языка 
 - Consumes: `t` из `web/src/i18n.ts`.
 - Produces: все строки компонентов через `t()`; `TERRAIN_LABELS` со значениями-ключами.
 
-- [ ] **Step 1: types.ts — TERRAIN_LABELS → ключи**
+- [x] **Step 1: types.ts — TERRAIN_LABELS → ключи**
 
 В `web/src/types.ts` заменить `TERRAIN_LABELS`:
 ```ts
@@ -742,7 +742,7 @@ export const TERRAIN_LABELS: Record<Terrain, string> = {
 };
 ```
 
-- [ ] **Step 2: ContextMenu.vue**
+- [x] **Step 2: ContextMenu.vue**
 
 1. В `<script setup>` добавить импорт:
 ```ts
@@ -786,7 +786,7 @@ import { t } from '../i18n';
 ```
 (точные строки-литералы `'Война'`, `'Мир'`, `'Союз'`, `'уже война'`, `'во время войны нельзя'`, `'вы союзники'`, `'уже союз'`, `'Отклонить'`, `Принять ...` — заменить по таблице в i18n: `cm.war`, `cm.peace`, `cm.alliance`, `cm.alreadyWar`, `cm.notInWar`, `cm.allies`, `cm.alreadyAlliance`, `cm.decline`, `cm.acceptPeace`/`cm.acceptAlliance`.)
 
-- [ ] **Step 3: HexMap.vue**
+- [x] **Step 3: HexMap.vue**
 
 1. В `<script setup>` добавить импорт:
 ```ts
@@ -812,30 +812,30 @@ import { t } from '../i18n';
             {{ t('hex.capture', { name: playerName(captureState(hovered)!.byId) }) }}
 ```
 
-- [ ] **Step 4: Hud.vue**
+- [x] **Step 4: Hud.vue**
 
 1. Импорт: `import { t } from '../i18n';`
 2. `<span v-if="p.eliminated" class="player-list__dead">выбыл</span>` → `<span v-if="p.eliminated" class="player-list__dead">{{ t('hud.eliminated') }}</span>`
 
-- [ ] **Step 5: ArmyBar.vue**
+- [x] **Step 5: ArmyBar.vue**
 
 1. Импорт: `import { t } from '../i18n';`
 2. `Армия` → `{{ t('army.label') }}`
 3. `% от очков · доступно {{ available }}/{{ limit }}` → `{{ t('army.hint', { available, limit }) }}`
 
-- [ ] **Step 6: FpsOverlay.vue**
+- [x] **Step 6: FpsOverlay.vue**
 
 1. Импорт: `import { t } from '../i18n';`
 2. `{{ showSummary ? 'Скрыть итог' : 'Итог' }}` → `{{ showSummary ? t('fps.hideSummary') : t('fps.summary') }}`
 3. `Средний:` → `{{ t('fps.avg', { fps: avgFps() }) }}`; `Время: {{ duration() }} с` → `{{ t('fps.time', { s: duration() }) }}`
 
-- [ ] **Step 7: Проверить сборку**
+- [x] **Step 7: Проверить сборку**
 
 Run: `cd web && npm run build`
 Expected: чисто. Дополнительно убедиться, что в `web/src` не осталось пользовательских кириллических строк (комментарии не считаем):
 `rg -P "[\p{Cyrillic}]{4,}" web/src --include` — в .vue/.ts должны остаться только комментарии и словари i18n (или ничего критичного).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add web/src/components web/src/types.ts
@@ -854,7 +854,7 @@ git commit -m "feat: перевод компонентов и террейнов
 - Consumes: всё существующее.
 - Produces: сервер без пользовательских кириллических строк; тесты PASS.
 
-- [ ] **Step 1: Прочитать текущие литералы**
+- [x] **Step 1: Прочитать текущие литералы**
 
 Каждая строка ниже — точный текущий русский литерал в коде сервера. Заменить его на английский в указанном файле (во всех вхождениях). Имена тестов (`it('...')`) и комментарии не менять.
 
@@ -989,11 +989,11 @@ const COUNTRY_SUFFIXES = [
 | `'Google-вход не настроен на сервере'` | `'Google sign-in is not configured on the server'` |
 | `'Не удалось проверить токен Google'` | `'Failed to verify Google token'` |
 
-- [ ] **Step 2: Обновить тесты**
+- [x] **Step 2: Обновить тесты**
 
 В `server/test/rules.test.ts` и `server/test/rooms.test.ts` заменить ВСЕ литералы, которые сравниваются с сообщениями выше/логами, на новые английские (по таблице). Имена `describe`/`it` по-русски не трогать. Примеры: `expect(result.error).toBe('Не хватает очков')` → `'Not enough points'`; `expect(room.view().log.join()).toContain('Game restarted')` и т.п.
 
-- [ ] **Step 3: Проверить сервер: тесты + проверить отсутствие строк**
+- [x] **Step 3: Проверить сервер: тесты + проверить отсутствие строк**
 
 Run: `cd server && npm test`
 Expected: все PASS.
@@ -1002,7 +1002,7 @@ Expected: все PASS.
 `rg -n -P "[\p{Cyrillic}]{4,}" server/src`
 Expected: остаются только строки в комментариях (`//`). Если есть кириллица в строковых литералах — перевести.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/src server/test
@@ -1022,7 +1022,7 @@ git commit -m "feat: сервер на английском (лог, ошибк�
   - `web/src/training.ts`: `trainingStage: Ref<TrainingStage|null>`, `taskDone: Ref<boolean>`, `STAGE_ORDER: TrainingStage[]`, `initTraining({sendPause,isPaused})`, `stopTraining()`, `observeTraining(state, playerId)`, `continueTutorial()`.
   - В App.vue: `startTutorial()`; оверлей-подсказка с кнопкой «Ок»; бейдж «Обучение»; сброс машины при рестарте и остановка при выходе/окончании игры.
 
-- [ ] **Step 1: Создать `web/src/training.ts`**
+- [x] **Step 1: Создать `web/src/training.ts`**
 
 ```ts
 import { ref, type Ref } from 'vue';
@@ -1194,7 +1194,7 @@ export function continueTutorial(): void {
 }
 ```
 
-- [ ] **Step 2: App.vue — импорты и скрипт**
+- [x] **Step 2: App.vue — импорты и скрипт**
 
 1. В импортах добавить:
 ```ts
@@ -1261,7 +1261,7 @@ function startTutorial(): void {
   }
 ```
 
-- [ ] **Step 3: App.vue — шаблон**
+- [x] **Step 3: App.vue — шаблон**
 
 1. В главном меню после кнопки «Играть с людьми» добавить кнопку «Обучение»:
 ```html
@@ -1285,7 +1285,7 @@ function startTutorial(): void {
         </div>
 ```
 
-- [ ] **Step 4: App.vue — стили оверлея/бейджа**
+- [x] **Step 4: App.vue — стили оверлея/бейджа**
 
 Добавить в `<style scoped>`:
 
@@ -1336,7 +1336,7 @@ function startTutorial(): void {
 }
 ```
 
-- [ ] **Step 5: Проверить сборку**
+- [x] **Step 5: Проверить сборку**
 
 Run: `cd web && npm run build`
 Expected: чисто.
@@ -1352,7 +1352,7 @@ Expected: чисто.
 5. Переключение языка во время игры меняет тексты подсказок сразу.
 6. Перезагрузка страницы во время обучения: подсказки исчезают, бейдж «Обучение» остаётся, игра идёт как обычная соло.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add web/src/training.ts web/src/App.vue

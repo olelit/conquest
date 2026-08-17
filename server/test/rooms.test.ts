@@ -782,3 +782,56 @@ describe('Room: обучение', () => {
     expect(proposal!.to).toBe(ai.id);
   });
 });
+
+describe('Room: большинство — решение игрока', () => {
+  it('человек достигает большинства: игра не завершается, majorityHolderId в view', () => {
+    const room = makeRoom(true, 1, 6);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const target = rules.winHexCount(g.hexes.length);
+    for (let i = 0; i < target; i++) g.hexes[i].ownerId = 1;
+    room.tick();
+    expect(g.winnerId).toBeNull();
+    expect(room.view(1).game!.majorityHolderId).toBe(1);
+  });
+  it('ИИ достигает большинства: игра завершается как раньше', () => {
+    const room = makeRoom(true, 1, 6);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const target = rules.winHexCount(g.hexes.length);
+    for (let i = 0; i < target; i++) g.hexes[i].ownerId = ai.id;
+    room.tick();
+    expect(g.winnerId).toBe(ai.id);
+    expect(room.view(1).game!.majorityHolderId).toBeNull();
+  });
+  it('end-game от владельца большинства завершает игру его победой', () => {
+    const room = makeRoom(true, 1, 6);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const target = rules.winHexCount(g.hexes.length);
+    for (let i = 0; i < target; i++) g.hexes[i].ownerId = 1;
+    room.tick();
+    expect(room.view(1).game!.majorityHolderId).toBe(1);
+    const result = room.handleAction(1, 'end-game', {});
+    expect(result.type).toBe('state');
+    expect(g.winnerId).toBe(1);
+    expect(room.view(1).game!.majorityHolderId).toBeNull();
+  });
+  it('end-game от не-владельца большинства отклоняется', () => {
+    const room = makeRoom(true, 1, 6);
+    room.addHuman('A', 1);
+    room.addHuman('B', 2);
+    room.start(1);
+    const g = room.gameState!;
+    const target = rules.winHexCount(g.hexes.length);
+    for (let i = 0; i < target; i++) g.hexes[i].ownerId = 1;
+    room.tick();
+    const result = room.handleAction(2, 'end-game', {});
+    expect(result.type).toBe('error');
+    expect(g.winnerId).toBeNull();
+  });
+});

@@ -34,6 +34,7 @@ export interface ViewGame {
   players: ViewPlayer[];
   hexes: HexState[];
   winnerId: number | null;
+  majorityHolderId: number | null;
   captureTicks: number;
   pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[];
 }
@@ -78,6 +79,7 @@ export class Room {
   private aiLastActionAt = new Map<number, number>();
   private lastCapturerId: number | null = null;
   private pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[] = [];
+  private majorityHolderId: number | null = null;
   private scoutCache: { hexCount: number; points: number; updatedAt: number } | null = null;
   private peaceCooldowns = new Map<string, number>();
 
@@ -169,6 +171,7 @@ export class Room {
     this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
+    this.majorityHolderId = null;
     this.status = 'playing';
     this.paused = false;
     this.lastCapturerId = null;
@@ -224,6 +227,7 @@ export class Room {
     this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
+    this.majorityHolderId = null;
     this.scoutCache = null;
     this.peaceCooldowns.clear();
     this.paused = false;
@@ -356,7 +360,30 @@ export class Room {
         this.applyAiAction(player.id, action);
       }
     }
-    rules.computeWinner(state);
+    this.updateWinner(state);
+  }
+
+  // Человек, достигший большинства, сам решает, завершать ли игру:
+  // пока он не отправил end-game, игра продолжается (majorityHolderId в view).
+  // Для ИИ и при выбывании всех соперников — авто-завершение как раньше.
+  private updateWinner(state: GameState): void {
+    if (state.winnerId !== null) return;
+    const majority = state.players.find(
+      (p) => !p.eliminated && rules.hexCount(state, p.id) >= rules.winHexCount(state.hexes.length),
+    );
+    if (majority !== undefined) {
+      if (majority.isAi) {
+        state.winnerId = majority.id;
+      } else {
+        this.majorityHolderId = majority.id;
+      }
+      return;
+    }
+    this.majorityHolderId = null;
+    const remaining = state.players.filter((p) => !p.eliminated);
+    if (remaining.length === 1 && rules.hexCount(state, remaining[0].id) > 0) {
+      state.winnerId = remaining[0].id;
+    }
   }
 
   private aiAcceptsProposal(state: GameState, aiId: number, proposerId: number): boolean {
@@ -455,6 +482,14 @@ export class Room {
     if (type === 'pause') {
       if (!this.aiMode) return { type: 'error', message: 'Pause is not available in human games' };
       if (this.status === 'playing') this.paused = !this.paused;
+      return { type: 'state' };
+    }
+    if (type === 'end-game') {
+      if (playerId === null) return { type: 'error', message: "You're not in this room" };
+      if (this.status !== 'playing' || !this.state) return { type: 'error', message: 'The game has not started yet' };
+      if (this.majorityHolderId !== playerId) return { type: 'error', message: 'Only the majority holder can end the game' };
+      this.state.winnerId = playerId;
+      this.majorityHolderId = null;
       return { type: 'state' };
     }
     if (playerId === null) return { type: 'error', message: "You're not in this room" };
@@ -612,6 +647,7 @@ export class Room {
             }),
             hexes: state.hexes,
             winnerId: state.winnerId,
+            majorityHolderId: this.majorityHolderId,
             captureTicks: rules.CAPTURE_TICKS,
             pendingProposals: playerId !== null ? this.pendingProposals.filter((p) => p.to === playerId || p.from === playerId).map((p) => ({ from: p.from, to: p.to, kind: p.kind })) : [],
           }
