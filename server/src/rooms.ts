@@ -39,6 +39,13 @@ export interface ViewGame {
   pendingProposals: { from: number; to: number; kind: 'peace' | 'alliance' }[];
 }
 
+export type LogKind = 'info' | 'war' | 'diplomacy';
+
+export interface LogEntry {
+  text: string;
+  kind: LogKind;
+}
+
 export interface RoomView {
   id: number;
   name: string;
@@ -52,7 +59,7 @@ export interface RoomView {
   slots: { id: number; name: string; isAi: boolean }[];
   paused: boolean;
   game: ViewGame | null;
-  log: string[];
+  log: LogEntry[];
 }
 
 export type ActionResult = { type: 'state' } | { type: 'error'; message: string };
@@ -74,7 +81,7 @@ export class Room {
   private slots: RoomSlot[] = [];
   private connToSlot = new Map<number, number>();
   private state: GameState | null = null;
-  private log: string[] = [];
+  private log: LogEntry[] = [];
   private eliminationSpawned = new Set<number>();
   private aiLastActionAt = new Map<number, number>();
   private lastCapturerId: number | null = null;
@@ -343,7 +350,7 @@ export class Room {
           } else {
             rules.makeAlliance(state, aiPlayer.id, proposal.from);
           }
-          this.addLog(`${this.playerName(aiPlayer.id)} and ${this.playerName(proposal.from)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`);
+          this.addLog(`${this.playerName(aiPlayer.id)} and ${this.playerName(proposal.from)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`, 'diplomacy');
         } else {
           this.addLog(`${this.playerName(aiPlayer.id)} declined the proposal of ${this.playerName(proposal.from)}`);
         }
@@ -424,7 +431,7 @@ export class Room {
       const targetSide = target.isAi ? sideStrength(target.id) : { hexes: this.scoutCache?.hexCount ?? 0, points: this.scoutCache?.points ?? 0 };
       if (aiSide.hexes > targetSide.hexes || aiSide.points > targetSide.points) {
         rules.declareWar(state, aiId, target.id);
-        this.addLog(`${this.playerName(aiId)} declared war on ${this.playerName(target.id)}`);
+        this.addLog(`${this.playerName(aiId)} declared war on ${this.playerName(target.id)}`, 'war');
       }
     }
   }
@@ -545,7 +552,7 @@ export class Room {
           return { type: 'error', message: 'Already at war' };
         }
         rules.declareWar(this.state, playerId, target);
-        this.addLog(`${this.playerName(playerId)} declared war on ${this.playerName(target)}`);
+        this.addLog(`${this.playerName(playerId)} declared war on ${this.playerName(target)}`, 'war');
         return { type: 'state' };
       }
       case 'propose': {
@@ -574,7 +581,7 @@ export class Room {
         if (msg.accept) {
           if (proposal.kind === 'peace') rules.makePeace(this.state!, playerId, proposer);
           else rules.makeAlliance(this.state!, playerId, proposer);
-          this.addLog(`${this.playerName(playerId)} and ${this.playerName(proposer)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`);
+          this.addLog(`${this.playerName(playerId)} and ${this.playerName(proposer)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`, 'diplomacy');
         } else {
           this.addLog(`${this.playerName(playerId)} declined the proposal of ${this.playerName(proposer)}`);
         }
@@ -732,8 +739,8 @@ export class Room {
     return hex.ownerId;
   }
 
-  private addLog(message: string): void {
-    this.log.unshift(message);
+  private addLog(message: string, kind: LogKind = 'info'): void {
+    this.log.unshift({ text: message, kind });
     if (this.log.length > 100) this.log.pop();
   }
 }

@@ -146,7 +146,7 @@ describe('Room: действия и тик', () => {
     room.handleAction(1, 'capture', { q: 0, r: 0 });
     room.tick();
     const log = room.view().log;
-    expect(log.some((entry) => entry.includes('захватил'))).toBe(false);
+    expect(log.some((entry) => entry.text.includes('захватил'))).toBe(false);
   });
   it('тик: AI захватывает первый гекс, доход не падает', () => {
     const room = makeRoom(true, 1, 2);
@@ -520,7 +520,21 @@ describe('Room: дипломатия', () => {
     expect(result.type).toBe('state');
     expect(rules.relation(g, 1, 2)).toBe('war');
     expect(rules.relation(g, 1, 3)).toBe('war');
-    expect(room.view(1).log.some((l) => l.includes('declared war'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.text.includes('declared war'))).toBe(true);
+  });
+  it('объявление войны попадает в лог с kind=war', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 2, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    for (const [playerId, i] of [[1, 0], [2, 1], [3, 2]] as [number, number][]) {
+      g.hexes[i].ownerId = playerId;
+      g.players.find((p) => p.id === playerId)!.capital = { q: g.hexes[i].q, r: g.hexes[i].r };
+    }
+    const hex = g.hexes.find((h) => h.ownerId === 2)!;
+    room.handleAction(1, 'declare-war', { q: hex.q, r: hex.r });
+    const entry = room.view(1).log.find((l) => l.text.includes('declared war'))!;
+    expect(entry.kind).toBe('war');
   });
   it('предложение мира: ИИ принимает при равенстве сил', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
@@ -701,11 +715,11 @@ describe('Room: крепость', () => {
     const build = room.handleAction(1, 'build-fortress', { q: hex.q, r: hex.r });
     expect(build.type).toBe('state');
     expect(hex.fortress).toBe(true);
-    expect(room.view(1).log.some((l) => l.includes('built a fortress'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.text.includes('built a fortress'))).toBe(true);
     const remove = room.handleAction(1, 'remove-fortress', { q: hex.q, r: hex.r });
     expect(remove.type).toBe('state');
     expect(hex.fortress).toBe(false);
-    expect(room.view(1).log.some((l) => l.includes('removed a fortress'))).toBe(true);
+    expect(room.view(1).log.some((l) => l.text.includes('removed a fortress'))).toBe(true);
   });
   it('view: лимит уменьшен на 100 за крепость', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
