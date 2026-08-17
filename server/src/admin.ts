@@ -109,7 +109,48 @@ export function registerAdminRoutes(app: express.Express, manager: RoomManager, 
     res.json(manager.adminOverview());
   });
 
-  // /dumps, /dumps/:id, /rooms/:roomId/dump добавляются в Task 5
+  protectedRouter.get('/dumps', async (_req, res) => {
+    try {
+      res.json({ ok: true, dumps: await dumps.list() });
+    } catch (err) {
+      console.error('dumps list failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to list dumps' });
+    }
+  });
+
+  protectedRouter.get('/dumps/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ ok: false, error: 'Invalid id' });
+      return;
+    }
+    try {
+      const dump = await dumps.findById(id);
+      if (!dump) {
+        res.status(404).json({ ok: false, error: 'Dump not found' });
+        return;
+      }
+      res.json({ ok: true, dump });
+    } catch (err) {
+      console.error('dump fetch failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to fetch dump' });
+    }
+  });
+
+  protectedRouter.post('/rooms/:roomId/dump', async (req, res) => {
+    const roomId = Number(req.params.roomId);
+    if (!Number.isInteger(roomId)) {
+      res.status(400).json({ ok: false, error: 'Invalid room id' });
+      return;
+    }
+    const note = (req.body as { note?: string } | undefined)?.note;
+    const result = await manager.dumpRoom(roomId, typeof note === 'string' && note.trim().length > 0 ? note.trim() : undefined);
+    if (!result.ok) {
+      res.status(404).json({ ok: false, error: result.error });
+      return;
+    }
+    res.json({ ok: true, id: result.id });
+  });
 
   app.use('/api/admin', publicRouter);
   app.use('/api/admin', protectedRouter);
