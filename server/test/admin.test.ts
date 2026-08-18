@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hashPassword } from '../src/password.js';
 import { signToken, verifyToken, authAdmin } from '../src/admin.js';
 
 const SECRET = 'test-secret';
@@ -21,8 +22,10 @@ describe('admin: токен сессии', () => {
     const token = signToken({ u: 'admin', exp: Date.now() + 60000 }, SECRET);
     expect(verifyToken(token, 'other-secret')).toBeNull();
   });
-  it('authAdmin сверяет логин и пароль', () => {
-    expect(authAdmin('admin', 'admin')).toBe(true);
-    expect(authAdmin('admin', 'wrong')).toBe(false);
+  it('authAdmin сверяет логин и scrypt-хэш пароля', async () => {
+    const stored = { username: 'admin', passwordHash: await hashPassword('admin'), sessionSecret: 'x' };
+    expect(await authAdmin('admin', 'admin', stored)).toBe(true);
+    expect(await authAdmin('admin', 'wrong', stored)).toBe(false);
+    expect(await authAdmin('root', 'admin', stored)).toBe(false);
   });
 });

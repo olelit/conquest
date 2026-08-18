@@ -2,9 +2,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { config } from './config.js';
+import { hashPassword, verifyPassword } from './password.js';
 import type { RoomManager } from './rooms.js';
-import type { DumpsRepository } from './db.js';
+import type { AdminCredentialsRepository, DumpsRepository } from './db.js';
 
 export const ADMIN_COOKIE = 'conquest_admin';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -39,34 +39,17 @@ export function verifyToken(token: string, secret: string): { u: string } | null
   return { u: payload.u };
 }
 
-export function authAdmin(username: string, password: string): boolean {
-  if (username !== config.adminUser) return false;
-  const actual = createHmac('sha256', config.adminSecret).update(password).digest();
-  const expected = createHmac('sha256', config.adminSecret).update(config.adminPassword).digest();
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+export async function authAdmin(
+  username: string,
+  password: string,
+  stored: { username: string; passwordHash: string },
+): Promise<boolean> {
+  if (username !== stored.username) return false;
+  return verifyPassword(password, stored.passwordHash);
 }
 
-export function adminSession(req: Request): { u: string } | null {
-  const cookie = req.headers.cookie ?? '';
-  const match = cookie
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${ADMIN_COOKIE}=`));
-  if (!match) return null;
-  const token = match.slice(ADMIN_COOKIE.length + 1);
-  return verifyToken(token, config.adminSecret);
-}
-
-export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (adminSession(req)) {
-    next();
-  } else {
-    res.status(401).json({ ok: false, error: 'Admin access required' });
-  }
-}
-
-export function setAdminCookie(res: Response): void {
-  const token = signToken({ u: config.adminUser, exp: Date.now() + SESSION_TTL_MS }, config.adminSecret);
+export function setAdminCookie(res: Response, username: string, secret: string): void {
+  const token = signToken({ u: username, exp: Date.now() + SESSION_TTL_MS }, secret);
   res.setHeader('Set-Cookie', `${ADMIN_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/`);
 }
 
@@ -74,21 +57,87 @@ export function clearAdminCookie(res: Response): void {
   res.setHeader('Set-Cookie', `${ADMIN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
 }
 
-export function registerAdminRoutes(app: express.Express, manager: RoomManager, dumps: DumpsRepository): void {
+function sessionFrom(req: Request, secret: string): { u: string } | null {
+  const cookie = req.headers.cookie ?? '';
+  const match = cookie
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${ADMIN_COOKIE}=`));
+  if (!match) return null;
+  const token = match.slice(ADMIN_COOKIE.length + 1);
+  return verifyToken(token, secret);
+}
+
+export interface CredentialChangeInput {
+  currentPassword?: string;
+  newLogin?: string;
+  newPassword?: string;
+}
+
+export type CredentialChange =
+  | { ok: true; username: string; passwordHash: string }
+  | { ok: false; status: 400 | 401 | 409; error: string };
+
+export async function planCredentialChange(
+  stored: { username: string; passwordHash: string },
+  input: CredentialChangeInput,
+): Promise<CredentialChange> {
+  const current = input.currentPassword ?? '';
+  if (!(await verifyPassword(current, stored.passwordHash))) {
+    return { ok: false, status: 401, error: 'Current password is incorrect' };
+  }
+  const newLogin = typeof input.newLogin === 'string' ? input.newLogin.trim() : undefined;
+  const newPassword = input.newPassword;
+  if ((newLogin === undefined || newLogin === '') && (newPassword === undefined || newPassword === '')) {
+    return { ok: false, status: 400, error: 'Nothing to change' };
+  }
+  if (newLogin !== undefined && newLogin === '') {
+    return { ok: false, status: 400, error: 'New login cannot be empty' };
+  }
+  if (newPassword !== undefined && newPassword === '') {
+    return { ok: false, status: 400, error: 'New password cannot be empty' };
+  }
+  if (newLogin !== undefined && newLogin === stored.username) {
+    return { ok: false, status: 409, error: 'New login is the same as current' };
+  }
+  if (newPassword !== undefined && (await verifyPassword(newPassword, stored.passwordHash))) {
+    return { ok: false, status: 400, error: 'New password is the same as current' };
+  }
+  return {
+    ok: true,
+    username: newLogin ?? stored.username,
+    passwordHash: newPassword !== undefined ? await hashPassword(newPassword) : stored.passwordHash,
+  };
+}
+
+export function registerAdminRoutes(
+  app: express.Express,
+  manager: RoomManager,
+  dumps: DumpsRepository,
+  adminCreds: AdminCredentialsRepository,
+): void {
   app.get('/admin', (_req, res) => {
     res.sendFile(join(import.meta.dirname, '..', 'public', 'admin.html'));
   });
 
   const publicRouter = express.Router();
 
-  publicRouter.post('/login', (req, res) => {
+  publicRouter.post('/login', async (req, res) => {
     const { username, password } = (req.body ?? {}) as { username?: string; password?: string };
-    if (!authAdmin(String(username ?? ''), String(password ?? ''))) {
+    let stored;
+    try {
+      stored = await adminCreds.get();
+    } catch (err) {
+      console.error('admin login failed:', err);
+      res.status(503).json({ ok: false, error: 'Admin service unavailable' });
+      return;
+    }
+    if (!stored || !(await authAdmin(String(username ?? ''), String(password ?? ''), stored))) {
       res.status(401).json({ ok: false, error: 'Invalid credentials' });
       return;
     }
-    setAdminCookie(res);
-    res.json({ ok: true, username: config.adminUser });
+    setAdminCookie(res, stored.username, stored.sessionSecret);
+    res.json({ ok: true, username: stored.username });
   });
 
   publicRouter.post('/logout', (_req, res) => {
@@ -96,8 +145,15 @@ export function registerAdminRoutes(app: express.Express, manager: RoomManager, 
     res.json({ ok: true });
   });
 
-  publicRouter.get('/me', (req, res) => {
-    const session = adminSession(req);
+  publicRouter.get('/me', async (req, res) => {
+    let stored;
+    try {
+      stored = await adminCreds.get();
+    } catch {
+      res.json({ authenticated: false });
+      return;
+    }
+    const session = stored ? sessionFrom(req, stored.sessionSecret) : null;
     if (!session) {
       res.json({ authenticated: false });
       return;
@@ -106,7 +162,18 @@ export function registerAdminRoutes(app: express.Express, manager: RoomManager, 
   });
 
   const protectedRouter = express.Router();
-  protectedRouter.use(requireAdmin);
+  protectedRouter.use(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const stored = await adminCreds.get();
+      if (stored && sessionFrom(req, stored.sessionSecret)) {
+        next();
+      } else {
+        res.status(401).json({ ok: false, error: 'Admin access required' });
+      }
+    } catch {
+      res.status(503).json({ ok: false, error: 'Admin service unavailable' });
+    }
+  });
 
   protectedRouter.get('/status', (_req, res) => {
     res.json(manager.adminOverview());
@@ -153,6 +220,35 @@ export function registerAdminRoutes(app: express.Express, manager: RoomManager, 
       return;
     }
     res.json({ ok: true, id: result.id });
+  });
+
+  protectedRouter.post('/credentials', async (req, res) => {
+    let stored;
+    try {
+      stored = await adminCreds.get();
+    } catch (err) {
+      console.error('credentials update failed:', err);
+      res.status(503).json({ ok: false, error: 'Admin service unavailable' });
+      return;
+    }
+    if (!stored) {
+      res.status(500).json({ ok: false, error: 'No admin credentials' });
+      return;
+    }
+    const plan = await planCredentialChange(stored, (req.body ?? {}) as CredentialChangeInput);
+    if (!plan.ok) {
+      res.status(plan.status).json({ ok: false, error: plan.error });
+      return;
+    }
+    try {
+      await adminCreds.updateCredentials(plan.username, plan.passwordHash);
+    } catch (err) {
+      console.error('credentials update failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to update credentials' });
+      return;
+    }
+    clearAdminCookie(res);
+    res.json({ ok: true });
   });
 
   app.use('/api/admin', publicRouter);
