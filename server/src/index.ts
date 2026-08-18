@@ -1,6 +1,6 @@
 import http from 'http';
 import express from 'express';
-import { closeDb, initDb, dumpsRepository } from './db.js';
+import { closeDb, initDb, dumpsRepository, adminCredentialsRepository } from './db.js';
 import { config } from './config.js';
 import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
@@ -37,17 +37,14 @@ async function main(): Promise<void> {
   await connectWithRetry();
 
   const manager = new RoomManager();
-  registerAdminRoutes(app, manager, dumpsRepository);
+  registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository);
 
   if (process.env.NODE_ENV === 'production') {
     const cfg = await import('./config.js');
-    const insecure =
-      cfg.config.adminUser === 'admin' ||
-      cfg.config.adminPassword === 'admin' ||
-      cfg.config.adminSecret === 'conquest-admin-dev-secret';
+    const insecure = cfg.config.adminUser === 'admin' || cfg.config.adminPassword === 'admin';
     if (insecure) {
       console.warn(
-        'WARNING: admin uses default credentials/secret. Set CONQUEST_ADMIN_USER, CONQUEST_ADMIN_PASSWORD, CONQUEST_ADMIN_SECRET in production.',
+        'WARNING: admin uses default credentials. Set CONQUEST_ADMIN_USER and CONQUEST_ADMIN_PASSWORD in production.',
       );
     }
   }

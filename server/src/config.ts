@@ -38,5 +38,4 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   adminUser: process.env.CONQUEST_ADMIN_USER ?? 'admin',
   adminPassword: process.env.CONQUEST_ADMIN_PASSWORD ?? 'admin',
-  adminSecret: process.env.CONQUEST_ADMIN_SECRET ?? 'conquest-admin-dev-secret',
 };

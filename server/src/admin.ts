@@ -88,14 +88,14 @@ export async function planCredentialChange(
   }
   const newLogin = typeof input.newLogin === 'string' ? input.newLogin.trim() : undefined;
   const newPassword = input.newPassword;
-  if ((newLogin === undefined || newLogin === '') && (newPassword === undefined || newPassword === '')) {
-    return { ok: false, status: 400, error: 'Nothing to change' };
-  }
   if (newLogin !== undefined && newLogin === '') {
     return { ok: false, status: 400, error: 'New login cannot be empty' };
   }
   if (newPassword !== undefined && newPassword === '') {
     return { ok: false, status: 400, error: 'New password cannot be empty' };
+  }
+  if (newLogin === undefined && newPassword === undefined) {
+    return { ok: false, status: 400, error: 'Nothing to change' };
   }
   if (newLogin !== undefined && newLogin === stored.username) {
     return { ok: false, status: 409, error: 'New login is the same as current' };
