@@ -27,17 +27,28 @@
   .ok { color: #69db7c; }
   pre { background: #0d0d12; border: 1px solid #333; border-radius: 8px; padding: 10px; overflow: auto; max-height: 70vh; font-size: 12px; }
   .note { color: #999; font-size: 12px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { background: #2a2a31; border: 1px solid #555; }
+  .tab.active { background: #2196f3; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .field label { color: #999; font-size: 12px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Conquest Admin</h1>
+  <div id="tabs" class="tabs" style="display:none">
+    <button class="tab active" data-tab="overview">Обзор</button>
+    <button class="tab" data-tab="account">Аккаунт</button>
+  </div>
   <div id="view"></div>
 </div>
 <script>
 const $ = (s) => document.querySelector(s);
 let statusTimer = null;
 let selectedDump = null;
+let currentTab = 'overview';
+let meUsername = '';
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -70,6 +81,68 @@ function renderLogin() {
 }
 
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function showTabs() {
+  $('#tabs').style.display = 'flex';
+  document.querySelectorAll('#tabs .tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === currentTab);
+  });
+}
+
+function bindTabs() {
+  document.querySelectorAll('#tabs .tab').forEach((b) => {
+    b.onclick = () => switchTab(b.dataset.tab);
+  });
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  stopPoll();
+  showTabs();
+  if (tab === 'account') renderAccount();
+  else renderDashboard();
+}
+
+function renderAccount() {
+  $('#view').innerHTML = `
+    <div class="card" style="max-width:420px">
+      <h2>Аккаунт</h2>
+      <div class="field"><label>Логин</label><input id="cur-login" value="${esc(meUsername)}" disabled></div>
+      <div class="field"><label>Текущий пароль</label><input id="cur-pass" type="password" autocomplete="current-password"></div>
+      <div class="field"><label>Новый логин (необязательно)</label><input id="new-login" autocomplete="off"></div>
+      <div class="field"><label>Новый пароль (необязательно)</label><input id="new-pass" type="password" autocomplete="new-password"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="save-creds">Сохранить</button>
+        <span id="creds-msg" class="note"></span>
+      </div>
+    </div>`;
+  $('#save-creds').onclick = async () => {
+    const msg = $('#creds-msg');
+    msg.className = 'note';
+    msg.textContent = 'Сохранение…';
+    let res;
+    try {
+      res = await fetch('/api/admin/credentials', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: $('#cur-pass').value,
+          newLogin: $('#new-login').value.trim() || undefined,
+          newPassword: $('#new-pass').value || undefined,
+        }),
+      });
+    } catch (e) {
+      msg.className = 'err';
+      msg.textContent = 'Ошибка сети';
+      return;
+    }
+    const r = await res.json().catch(() => ({}));
+    if (res.ok && r.ok) { boot(); return; }
+    msg.className = 'err';
+    msg.textContent = r.error || (res.status === 401 ? 'Сессия истекла' : 'Ошибка');
+  };
+}
 
 function renderStatus(data) {
   $('#online').textContent = String(data.online);
@@ -130,6 +203,7 @@ async function renderDashboard() {
     <div class="card"><table><thead><tr><th>#</th><th>Комната</th><th>Карта</th><th>Заметка</th><th>Когда</th><th></th></tr></thead><tbody id="dumps"></tbody></table></div>
     <div id="dump-view"></div>`;
   $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); stopPoll(); boot(); };
+  showTabs();
   let status = { online: 0, players: [], rooms: [] };
   try {
     const r = await api('/api/admin/status');
@@ -192,8 +266,17 @@ function stopPoll() {
 async function boot() {
   let me;
   try { me = await refreshMe(); } catch { me = { authenticated: false }; }
-  if (me.authenticated) renderDashboard();
-  else renderLogin();
+  if (me.authenticated) {
+    meUsername = me.username || '';
+    bindTabs();
+    showTabs();
+    renderDashboard();
+  } else {
+    meUsername = '';
+    currentTab = 'overview';
+    $('#tabs').style.display = 'none';
+    renderLogin();
+  }
 }
 
 boot();
