@@ -96,4 +96,16 @@ describe('admin: смена кредов (planCredentialChange)', () => {
     expect(verifyToken(token, secretA)).toEqual({ u: 'admin' });
     expect(verifyToken(token, 'secret-B')).toBeNull();
   });
+
+  it('нестроковый текущий пароль не падает (401)', async () => {
+    const stored = await storedFor('old');
+    const r = await planCredentialChange(stored, { currentPassword: { x: 1 } as unknown as string, newPassword: 'new' });
+    expect(r).toEqual({ ok: false, status: 401, error: 'Current password is incorrect' });
+  });
+
+  it('null новый пароль не падает (трактуется как ничего не меняем)', async () => {
+    const stored = await storedFor('old');
+    const r = await planCredentialChange(stored, { currentPassword: 'old', newPassword: null as unknown as string });
+    expect(r).toEqual({ ok: false, status: 400, error: 'Nothing to change' });
+  });
 });

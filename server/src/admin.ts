@@ -82,12 +82,12 @@ export async function planCredentialChange(
   stored: { username: string; passwordHash: string },
   input: CredentialChangeInput,
 ): Promise<CredentialChange> {
-  const current = input.currentPassword ?? '';
+  const current = typeof input.currentPassword === 'string' ? input.currentPassword : '';
   if (!(await verifyPassword(current, stored.passwordHash))) {
     return { ok: false, status: 401, error: 'Current password is incorrect' };
   }
   const newLogin = typeof input.newLogin === 'string' ? input.newLogin.trim() : undefined;
-  const newPassword = input.newPassword;
+  const newPassword = typeof input.newPassword === 'string' ? input.newPassword : undefined;
   if (newLogin !== undefined && newLogin === '') {
     return { ok: false, status: 400, error: 'New login cannot be empty' };
   }

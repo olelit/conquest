@@ -74,9 +74,20 @@ function renderLogin() {
   $('#login').onclick = async () => {
     const u = $('#u').value.trim();
     const p = $('#p').value;
-    const r = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
-    if (!r.ok) { $('#err').textContent = 'Неверный логин или пароль'; return; }
-    boot();
+    $('#err').textContent = '';
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (res.ok && r.ok) { boot(); return; }
+      $('#err').textContent = r.error || (res.status === 401 ? 'Неверный логин или пароль' : 'Ошибка сервера');
+    } catch (e) {
+      $('#err').textContent = 'Ошибка сети';
+    }
   };
 }
 
