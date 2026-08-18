@@ -143,6 +143,51 @@ export class DumpsRepository {
   }
 }
 
+@Entity('feedback')
+export class FeedbackEntity {
+  @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
+  id!: number;
+
+  @Column({ name: 'text', type: 'text' })
+  text!: string;
+
+  @Column({ name: 'ip', type: 'text' })
+  ip!: string;
+
+  @Column({ name: 'read', type: 'boolean', default: false })
+  read!: boolean;
+
+  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
+  createdAt!: Date;
+}
+
+export class FeedbackRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  private repo(): Repository<FeedbackEntity> {
+    return this.dataSource.getRepository(FeedbackEntity);
+  }
+
+  async create(text: string, ip: string): Promise<number> {
+    const entity = await this.repo().save({ text, ip, read: false });
+    return entity.id;
+  }
+
+  async list(): Promise<FeedbackEntity[]> {
+    return this.repo().find({ order: { id: 'DESC' } });
+  }
+
+  async markRead(id: number): Promise<boolean> {
+    const result = await this.repo().update({ id }, { read: true });
+    return (result.affected ?? 0) > 0;
+  }
+
+  async remove(id: number): Promise<boolean> {
+    const result = await this.repo().delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+}
+
 export const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.PGHOST ?? 'localhost',
@@ -150,13 +195,14 @@ export const dataSource = new DataSource({
   username: process.env.PGUSER ?? 'conquest',
   password: process.env.PGPASSWORD ?? 'conquest',
   database: process.env.PGDATABASE ?? 'conquest_db',
-  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity],
+  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity, FeedbackEntity],
   synchronize: true,
 });
 
 export const playersRepository = new PlayersRepository(dataSource);
 export const dumpsRepository = new DumpsRepository(dataSource);
 export const adminCredentialsRepository = new AdminCredentialsRepository(dataSource);
+export const feedbackRepository = new FeedbackRepository(dataSource);
 
 export async function initDb(): Promise<void> {
   await dataSource.initialize();

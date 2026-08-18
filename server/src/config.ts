@@ -38,4 +38,5 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   adminUser: process.env.CONQUEST_ADMIN_USER ?? 'admin',
   adminPassword: process.env.CONQUEST_ADMIN_PASSWORD ?? 'admin',
+  feedbackRateLimit: number('CONQUEST_FEEDBACK_RATE_LIMIT', 3),
 };
