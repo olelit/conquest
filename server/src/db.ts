@@ -1,5 +1,8 @@
 import 'reflect-metadata';
+import { randomBytes } from 'node:crypto';
 import { Column, DataSource, Entity, PrimaryColumn, PrimaryGeneratedColumn, Repository } from 'typeorm';
+import { config } from './config.js';
+import { hashPassword } from './password.js';
 
 @Entity('players')
 export class PlayerEntity {
@@ -65,6 +68,51 @@ export class GameDumpEntity {
   state!: unknown;
 }
 
+@Entity('admin_credentials')
+export class AdminCredentialsEntity {
+  @PrimaryColumn({ name: 'id', type: 'int' })
+  id!: number;
+
+  @Column({ name: 'username', type: 'text' })
+  username!: string;
+
+  @Column({ name: 'password_hash', type: 'text' })
+  passwordHash!: string;
+
+  @Column({ name: 'session_secret', type: 'text' })
+  sessionSecret!: string;
+}
+
+export class AdminCredentialsRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  private repo(): Repository<AdminCredentialsEntity> {
+    return this.dataSource.getRepository(AdminCredentialsEntity);
+  }
+
+  async get(): Promise<AdminCredentialsEntity | null> {
+    return this.repo().findOneBy({ id: 1 });
+  }
+
+  async ensureSeeded(username: string, password: string): Promise<void> {
+    const existing = await this.repo().findOneBy({ id: 1 });
+    if (existing) return;
+    await this.repo().save({
+      id: 1,
+      username,
+      passwordHash: await hashPassword(password),
+      sessionSecret: randomBytes(32).toString('base64url'),
+    });
+  }
+
+  async updateCredentials(username: string, passwordHash: string): Promise<void> {
+    await this.repo().update(
+      { id: 1 },
+      { username, passwordHash, sessionSecret: randomBytes(32).toString('base64url') },
+    );
+  }
+}
+
 export class DumpsRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -102,16 +150,18 @@ export const dataSource = new DataSource({
   username: process.env.PGUSER ?? 'conquest',
   password: process.env.PGPASSWORD ?? 'conquest',
   database: process.env.PGDATABASE ?? 'conquest_db',
-  entities: [PlayerEntity, GameDumpEntity],
+  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity],
   synchronize: true,
 });
 
 export const playersRepository = new PlayersRepository(dataSource);
 export const dumpsRepository = new DumpsRepository(dataSource);
+export const adminCredentialsRepository = new AdminCredentialsRepository(dataSource);
 
 export async function initDb(): Promise<void> {
   await dataSource.initialize();
   await playersRepository.migrate();
+  await adminCredentialsRepository.ensureSeeded(config.adminUser, config.adminPassword);
 }
 
 export async function closeDb(): Promise<void> {
