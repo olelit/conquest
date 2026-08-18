@@ -27,10 +27,9 @@ services:
       PGUSER: conquest
       PGPASSWORD: conquest
       PGDATABASE: conquest_db
-      # Admin панель (/admin): в проде обязательно задай эти переменные, особенно SECRET
+      # Admin панель (/admin): в проде обязательно задай CONQUEST_ADMIN_USER и CONQUEST_ADMIN_PASSWORD
       CONQUEST_ADMIN_USER: ${CONQUEST_ADMIN_USER:-admin}
       CONQUEST_ADMIN_PASSWORD: ${CONQUEST_ADMIN_PASSWORD:-admin}
-      CONQUEST_ADMIN_SECRET: ${CONQUEST_ADMIN_SECRET:-conquest-admin-dev-secret}
     depends_on:
       postgres:
         condition: service_healthy
