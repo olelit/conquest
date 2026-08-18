@@ -22,10 +22,10 @@ describe('admin: токен сессии', () => {
     const token = signToken({ u: 'admin', exp: Date.now() + 60000 }, SECRET);
     expect(verifyToken(token, 'other-secret')).toBeNull();
   });
-  it('authAdmin сверяет логин и scrypt-хэш пароля', async () => {
-    const stored = { username: 'admin', passwordHash: await hashPassword('admin'), sessionSecret: 'x' };
-    expect(await authAdmin('admin', 'admin', stored)).toBe(true);
-    expect(await authAdmin('admin', 'wrong', stored)).toBe(false);
-    expect(await authAdmin('root', 'admin', stored)).toBe(false);
+  it('authAdmin сверяет логин и scrypt-хэш пароля из БД', async () => {
+    const stored = { username: 'custom-admin', passwordHash: await hashPassword('custom-pass'), sessionSecret: 'x' };
+    expect(await authAdmin('custom-admin', 'custom-pass', stored)).toBe(true);
+    expect(await authAdmin('custom-admin', 'wrong', stored)).toBe(false);
+    expect(await authAdmin('admin', 'custom-pass', stored)).toBe(false);
   });
 });
