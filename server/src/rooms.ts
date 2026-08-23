@@ -5,7 +5,7 @@ import { chooseAiAction, type AiAction } from './ai.js';
 import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
 import { config, type Difficulty } from './config.js';
-import { GameStatsRecorder } from './stats.js';
+import { GameStatsRecorder, type StatsEvent, type StatsSummary } from './stats.js';
 import { dumpsRepository, usersRepository } from './db.js';
 
 export type RoomStatus = 'waiting' | 'playing';
@@ -88,6 +88,7 @@ export interface RoomDump {
   majorityHolderId: number | null;
   slots: RoomSlot[];
   log: LogEntry[];
+  stats: { events: StatsEvent[]; summary: StatsSummary };
   attackStartedAt: Record<string, number>;
 }
 
@@ -145,7 +146,6 @@ export class Room {
   private peaceCooldowns = new Map<string, number>();
 
   readonly stats: GameStatsRecorder;
-  private statsWritten = false;
   private tickCounter = 0;
   private startedAt = 0;
   private attackStartedAt = new Map<string, number>();
@@ -162,7 +162,7 @@ export class Room {
     readonly loadTest = false,
     readonly training = false,
   ) {
-    this.stats = new GameStatsRecorder(this.id);
+    this.stats = new GameStatsRecorder();
   }
 
   get gameState(): GameState | null {
@@ -238,7 +238,6 @@ export class Room {
     this.lastCapturerId = null;
     this.addLog('New game started');
     this.startedAt = Date.now();
-    this.statsWritten = false;
     this.tickCounter = 0;
     this.stats.record({
       type: 'start',
@@ -299,7 +298,6 @@ export class Room {
     this.lastCapturerId = null;
     this.stats.clear();
     this.startedAt = Date.now();
-    this.statsWritten = false;
     this.tickCounter = 0;
     this.stats.record({
       type: 'start',
@@ -324,7 +322,6 @@ export class Room {
       if (this.finishedAt === null) {
         this.finishedAt = Date.now();
         this.stats.record({ type: 'end', t: this.finishedAt, winnerId: state.winnerId, durationMs: this.finishedAt - this.startedAt });
-        this.writeStatsIfNeeded();
       }
       return;
     }
@@ -750,6 +747,7 @@ export class Room {
       majorityHolderId: this.majorityHolderId,
       slots: this.slots.map((s) => ({ ...s })),
       log: this.log.map((l) => ({ ...l })),
+      stats: { events: [...this.stats.events].reverse(), summary: this.stats.buildSummary() },
       attackStartedAt,
     };
   }
@@ -770,17 +768,6 @@ export class Room {
     const ms = now - started;
     if (ms >= 0 && ms < 30000) {
       this.stats.record({ type: 'reaction', t: now, playerId, ms });
-    }
-  }
-
-  writeStatsIfNeeded(): void {
-    if (this.statsWritten) return;
-    this.statsWritten = true;
-    try {
-      const path = this.stats.writeSummary(config.statsDir);
-      if (path === '') return;
-    } catch (err) {
-      console.error('stats write failed:', err);
     }
   }
 
@@ -1097,7 +1084,6 @@ export class RoomManager {
   }
 
   private removeRoom(room: Room): void {
-    room.writeStatsIfNeeded();
     this.rooms.delete(room.id);
     for (const [conn, roomId] of this.connToRoom) {
       if (roomId === room.id) this.connToRoom.delete(conn);

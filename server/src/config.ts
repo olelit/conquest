@@ -28,7 +28,6 @@ export const config = {
   captureTicks: number('CONQUEST_CAPTURE_TICKS', 5),
   drainPerTick: number('CONQUEST_DRAIN_PER_TICK', 10),
   aiActionIntervalMs: number('CONQUEST_AI_ACTION_INTERVAL_MS', 1000),
-  statsDir: process.env.CONQUEST_STATS_DIR ?? 'stats',
   aiIncomeMultipliers: {
     easy: number('CONQUEST_AI_INCOME_EASY', 0.5),
     medium: number('CONQUEST_AI_INCOME_MEDIUM', 0.75),

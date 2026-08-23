@@ -877,6 +877,10 @@ describe('Room: дамп состояния', () => {
     expect(dump.diplomacy['1-2']).toBe('war');
     expect(dump.slots).toHaveLength(3);
     expect(dump.log.length).toBeGreaterThan(0);
+    expect(dump.stats).toBeDefined();
+    expect(dump.stats.events.map((e) => e.type)).toContain('start');
+    expect(dump.stats.summary.players).toHaveLength(3);
+    expect(dump.stats.summary.durationMs).toBe(0);
   });
 });
 
@@ -904,5 +908,28 @@ describe('RoomManager: онлайн-игроки', () => {
     const rooms = m.adminOverview().rooms;
     expect(rooms).toHaveLength(1);
     expect(rooms[0]).toMatchObject({ mapType: 'normal', status: 'playing', humans: 1, aiMode: false });
+  });
+});
+
+describe('Room: дамп статов и порядок лога', () => {
+  it('dumpState: события статов идут новыми сверху', () => {
+    const room = makeRoom(true, 1, 2);
+    room.addHuman('A', 1);
+    room.start(1);
+    room.handleAction(1, 'capture', { q: 0, r: 0 });
+    room.tick();
+    const events = room.dumpState().stats.events;
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events[0].type).toBe('action'); // самое новое — первое
+    expect(events[events.length - 1].type).toBe('start'); // самое старое — последнее
+  });
+  it('лог: новые записи в начале списка', () => {
+    const room = makeRoom();
+    room.addHuman('A', 1);
+    expect(room.view().log[0].text).toContain('joined the room');
+    room.start(1);
+    const log = room.view().log;
+    expect(log[0].text).toBe('New game started');
+    expect(log[1].text).toContain('joined the room');
   });
 });
