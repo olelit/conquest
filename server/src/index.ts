@@ -1,6 +1,6 @@
 import http from 'http';
 import express from 'express';
-import { closeDb, initDb, dumpsRepository, adminCredentialsRepository } from './db.js';
+import { closeDb, initDb, dumpsRepository, adminCredentialsRepository, usersRepository } from './db.js';
 import { config } from './config.js';
 import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   await connectWithRetry();
 
   const manager = new RoomManager();
-  registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository);
+  registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository, usersRepository);
 
   if (process.env.NODE_ENV === 'production') {
     const cfg = await import('./config.js');

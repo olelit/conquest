@@ -6,7 +6,7 @@ import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
 import { config, type Difficulty } from './config.js';
 import { GameStatsRecorder } from './stats.js';
-import { dumpsRepository } from './db.js';
+import { dumpsRepository, usersRepository } from './db.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -898,6 +898,11 @@ export class RoomManager {
       if (!profile) return { ok: false, error: 'Failed to verify Google token' };
       this.authProfiles.set(connId, profile);
       this.roomForConn(connId)?.updateName(connId, profile.name);
+      try {
+        await usersRepository.upsertBySub(profile.sub, profile.email, profile.name);
+      } catch (err) {
+        console.error('user upsert failed:', err);
+      }
       return { ok: true };
     } catch (err) {
       console.error('google auth failed:', err);

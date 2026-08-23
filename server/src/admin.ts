@@ -4,7 +4,7 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { hashPassword, verifyPassword } from './password.js';
 import type { RoomManager } from './rooms.js';
-import type { AdminCredentialsRepository, DumpsRepository } from './db.js';
+import type { AdminCredentialsRepository, DumpsRepository, UsersRepository } from './db.js';
 
 export const ADMIN_COOKIE = 'conquest_admin';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -115,6 +115,7 @@ export function registerAdminRoutes(
   manager: RoomManager,
   dumps: DumpsRepository,
   adminCreds: AdminCredentialsRepository,
+  users: UsersRepository,
 ): void {
   app.get('/admin', (_req, res) => {
     res.sendFile(join(import.meta.dirname, '..', 'public', 'admin.html'));
@@ -185,6 +186,15 @@ export function registerAdminRoutes(
     } catch (err) {
       console.error('dumps list failed:', err);
       res.status(500).json({ ok: false, error: 'Failed to list dumps' });
+    }
+  });
+
+  protectedRouter.get('/users', async (_req, res) => {
+    try {
+      res.json({ ok: true, users: await users.list() });
+    } catch (err) {
+      console.error('users list failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to list users' });
     }
   });
 

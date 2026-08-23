@@ -20,7 +20,13 @@ beforeAll(async () => {
   };
   const app = express();
   app.use(express.json());
-  registerAdminRoutes(app, {} as never, {} as never, adminCreds as never);
+  const usersStub = {
+    list: async () => [
+      { id: 1, sub: 's1', email: 'a@x.com', name: 'A', firstSeenAt: new Date('2026-08-01'), lastSeenAt: new Date('2026-08-02') },
+      { id: 2, sub: 's2', email: 'b@x.com', name: 'B', firstSeenAt: new Date('2026-08-03'), lastSeenAt: new Date('2026-08-04') },
+    ],
+  };
+  registerAdminRoutes(app, {} as never, {} as never, adminCreds as never, usersStub as never);
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -50,5 +56,14 @@ describe('admin HTTP: /api/admin', () => {
     expect(res.status).toBe(401);
     const me = (await (await fetch(`${base}/api/admin/me`, { headers: { cookie } })).json()) as { authenticated: boolean };
     expect(me.authenticated).toBe(true);
+  });
+
+  it('users отдаёт список вошедших админу', async () => {
+    const res = await fetch(`${base}/api/admin/users`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok: boolean; users: { sub: string; name: string }[] };
+    expect(data.ok).toBe(true);
+    expect(data.users).toHaveLength(2);
+    expect(data.users[0]).toMatchObject({ sub: 's1', name: 'A' });
   });
 });

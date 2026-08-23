@@ -212,7 +212,9 @@ async function renderDashboard() {
     <div id="rooms"></div>
     <h2>Дампы</h2>
     <div class="card"><table><thead><tr><th>#</th><th>Комната</th><th>Карта</th><th>Заметка</th><th>Когда</th><th></th></tr></thead><tbody id="dumps"></tbody></table></div>
-    <div id="dump-view"></div>`;
+    <div id="dump-view"></div>
+    <h2>Пользователи</h2>
+    <div class="card"><table><thead><tr><th>Имя</th><th>Email</th><th>Первый вход</th><th>Последний вход</th></tr></thead><tbody id="users"></tbody></table></div>`;
   $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); stopPoll(); boot(); };
   showTabs();
   let status = { online: 0, players: [], rooms: [] };
@@ -225,6 +227,7 @@ async function renderDashboard() {
   renderStatus(status);
   renderRooms(status);
   loadDumps();
+  loadUsers();
   poll();
 }
 
@@ -267,6 +270,20 @@ async function loadDumps() {
         $('#dump-view').scrollIntoView();
       };
     });
+  } catch (e) { /* 401 обрабатывается в poll */ }
+}
+
+async function loadUsers() {
+  try {
+    const r = await api('/api/admin/users');
+    const list = r.users || [];
+    $('#users').innerHTML = list.map((u) => `
+      <tr>
+        <td>${esc(u.name)}</td>
+        <td>${esc(u.email)}</td>
+        <td>${new Date(u.firstSeenAt).toLocaleString()}</td>
+        <td>${new Date(u.lastSeenAt).toLocaleString()}</td>
+      </tr>`).join('') || '<tr><td colspan="4" class="note">Нет входов</td></tr>';
   } catch (e) { /* 401 обрабатывается в poll */ }
 }
 
