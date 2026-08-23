@@ -19,6 +19,15 @@ export type AiAction =
   | { type: 'attack'; q: number; r: number; points: number }
   | { type: 'build-fortress'; q: number; r: number };
 
+export type AiDiplomacyAction =
+  | { type: 'declare-war'; targetId: number }
+  | { type: 'propose-peace'; targetId: number }
+  | { type: 'propose-alliance'; targetId: number };
+
+export interface DiplomacyContext {
+  scout: { hexCount: number; points: number } | null;
+}
+
 const NEIGHBOR_OFFSETS: [number, number][] = [
   [1, 0],
   [-1, 0],
@@ -178,4 +187,68 @@ function hexDistance(a: { q: number; r: number }, b: { q: number; r: number }): 
   const dq = a.q - b.q;
   const dr = a.r - b.r;
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+export function chooseDiplomacyAction(
+  state: GameState,
+  aiId: number,
+  ctx: DiplomacyContext,
+): AiDiplomacyAction | null {
+  const ai = state.players.find((p) => p.id === aiId);
+  if (!ai || ai.eliminated) return null;
+  const aiHexes = hexCount(state, aiId);
+  const strength = (id: number): { hexes: number; points: number } => {
+    const p = state.players.find((x) => x.id === id);
+    return { hexes: hexCount(state, id), points: p?.points ?? 0 };
+  };
+  const scoutStr = { hexes: ctx.scout?.hexCount ?? 0, points: ctx.scout?.points ?? 0 };
+
+  for (const target of state.players) {
+    if (target.id === aiId || target.eliminated) continue;
+    if (relation(state, aiId, target.id) !== 'peace') continue;
+    let border: HexState | null = null;
+    for (const hex of state.hexes) {
+      if (hex.ownerId !== target.id) continue;
+      if (!hasAdjacentOwner(state, hex.q, hex.r, aiId)) continue;
+      if (border === null || terrainCost(hex.terrain) < terrainCost(border.terrain)) border = hex;
+    }
+    if (!border) continue;
+    const targetStr = target.isAi ? strength(target.id) : scoutStr;
+    const aiStr = strength(aiId);
+    const stronger =
+      aiStr.hexes > targetStr.hexes || (aiStr.hexes === targetStr.hexes && aiStr.points >= targetStr.points);
+    if (stronger && ai.points >= terrainCost(border.terrain)) {
+      return { type: 'declare-war', targetId: target.id };
+    }
+  }
+
+  for (const target of state.players) {
+    if (target.id === aiId || target.eliminated) continue;
+    if (relation(state, aiId, target.id) !== 'war') continue;
+    if (aiHexes < hexCount(state, target.id)) {
+      return { type: 'propose-peace', targetId: target.id };
+    }
+  }
+
+  const thirdStrongest = Math.max(
+    0,
+    ...state.players.filter((p) => p.id !== aiId && !p.eliminated).map((p) => hexCount(state, p.id)),
+  );
+  for (const target of state.players) {
+    if (target.id === aiId || target.eliminated) continue;
+    const rel = relation(state, aiId, target.id);
+    if (rel === 'war' || rel === 'alliance') continue;
+    const targetStr = target.isAi ? strength(target.id) : scoutStr;
+    const aiStr = strength(aiId);
+    const targetAtWar = state.players.some(
+      (p) => p.id !== target.id && p.id !== aiId && relation(state, target.id, p.id) === 'war',
+    );
+    const beneficial =
+      targetAtWar || targetStr.hexes > aiStr.hexes || thirdStrongest > Math.max(aiStr.hexes, targetStr.hexes);
+    if (beneficial) {
+      return { type: 'propose-alliance', targetId: target.id };
+    }
+  }
+
+  return null;
 }

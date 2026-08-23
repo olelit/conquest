@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAP_COLUMNS, MAP_ROWS } from '../src/map.js';
 import type { GameState, HexState } from '../src/rules.js';
 import { declareWar } from '../src/rules.js';
-import { chooseAiAction } from '../src/ai.js';
+import { chooseAiAction, chooseDiplomacyAction } from '../src/ai.js';
 
 function makeState(hexes: Partial<HexState>[], aiPoints = 1000, playerPoints = 1000): GameState {
   const h: HexState[] = [];
@@ -16,6 +16,27 @@ function makeState(hexes: Partial<HexState>[], aiPoints = 1000, playerPoints = 1
     if (hex) Object.assign(hex, p);
   }
   return { players: [{ id: 2, points: aiPoints }, { id: 1, points: playerPoints }], hexes: h, columns: MAP_COLUMNS, rows: MAP_ROWS, winnerId: null };
+}
+
+function makeDiploState(hexes: Partial<HexState>[], aiPoints = 1000, playerPoints = 1000, thirdPoints = 1000): GameState {
+  const h: HexState[] = [];
+  for (let r = 0; r < MAP_ROWS; r++) {
+    for (let q = 0; q < MAP_COLUMNS; q++) {
+      h.push({ q, r, terrain: 'grass', ownerId: null, attackerId: null, defenderId: null, attackInvestment: 0, defenseInvestment: 0, battleProgress: 0 });
+    }
+  }
+  for (const p of hexes) {
+    const hex = h.find((x) => x.q === p.q && x.r === p.r);
+    if (hex) Object.assign(hex, p);
+  }
+  return {
+    players: [{ id: 2, points: aiPoints }, { id: 1, points: playerPoints }, { id: 3, points: thirdPoints }],
+    hexes: h,
+    columns: MAP_COLUMNS,
+    rows: MAP_ROWS,
+    winnerId: null,
+    diplomacy: new Map(),
+  };
 }
 
 const P = 1;
@@ -198,5 +219,70 @@ describe('chooseAiAction', () => {
       { q: 7, r: 7, terrain: 'water' },
     ]);
     expect(chooseAiAction(s, AI)).toEqual({ type: 'capture', q: 6, r: 7 });
+  });
+});
+
+describe('chooseDiplomacyAction', () => {
+  it('объявляет войну соседу, когда планирует атаку (граница + очки + перевес)', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+    ]);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toEqual({ type: 'declare-war', targetId: P });
+  });
+  it('не объявляет войну без общей границы', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 10, r: 10, ownerId: P },
+    ], 2000, 100);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toBeNull();
+  });
+  it('не объявляет войну, если очков не хватает на атаку', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P, terrain: 'mountain' },
+    ], 100, 100);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toBeNull();
+  });
+  it('не объявляет войну, если цель сильнее — вместо этого предлагает союз', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+      { q: 5, r: 5, ownerId: P },
+      { q: 5, r: 6, ownerId: P },
+    ]);
+    const action = chooseDiplomacyAction(s, AI, { scout: { hexCount: 3, points: 1000 } });
+    expect(action).not.toEqual({ type: 'declare-war', targetId: P });
+    expect(action).toEqual({ type: 'propose-alliance', targetId: P });
+  });
+  it('предлагает мир, когда проигрывает в войне', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+      { q: 5, r: 5, ownerId: P },
+      { q: 5, r: 6, ownerId: P },
+    ]);
+    declareWar(s, AI, P);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 3, points: 1000 } })).toEqual({ type: 'propose-peace', targetId: P });
+  });
+  it('предлагает союз, когда у цели война с третьим игроком', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+      { q: 5, r: 5, ownerId: P },
+      { q: 5, r: 6, ownerId: P },
+      { q: 10, r: 10, ownerId: 3 },
+      { q: 11, r: 10, ownerId: 3 },
+    ], 1000, 1000, 1000);
+    declareWar(s, 3, P);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 3, points: 1000 } })).toEqual({ type: 'propose-alliance', targetId: P });
+  });
+  it('не предлагает союз без выгоды', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+      { q: 10, r: 10, ownerId: 3 },
+    ], 500, 1000, 1000);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
   });
 });
