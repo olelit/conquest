@@ -1,7 +1,7 @@
 import { MAP_PRESETS, generateMap, type MapType } from './map.js';
 import * as rules from './rules.js';
 import type { GameState, HexState, PlayerState } from './rules.js';
-import { chooseAiAction, type AiAction } from './ai.js';
+import { chooseAiAction, chooseDiplomacyAction, type AiAction } from './ai.js';
 import type { GoogleProfile } from './auth.js';
 import { verifyGoogleIdToken } from './auth.js';
 import { config, type Difficulty } from './config.js';
@@ -144,6 +144,7 @@ export class Room {
   private majorityHolderId: number | null = null;
   private scoutCache: { hexCount: number; points: number; updatedAt: number } | null = null;
   private peaceCooldowns = new Map<string, number>();
+  private proposalCooldowns = new Map<string, number>();
 
   readonly stats: GameStatsRecorder;
   private tickCounter = 0;
@@ -290,6 +291,7 @@ export class Room {
     this.majorityHolderId = null;
     this.scoutCache = null;
     this.peaceCooldowns.clear();
+    this.proposalCooldowns.clear();
     this.paused = false;
     this.finishedAt = null;
     this.aiLastActionAt.clear();
@@ -409,7 +411,7 @@ export class Room {
     }
     for (const player of state.players) {
       if (!player.isAi || player.eliminated) continue;
-      this.maybeDeclareWar(state, player.id);
+      this.handleAiDiplomacy(state, player.id);
       const last = this.aiLastActionAt.get(player.id) ?? 0;
       if (now - last < config.aiActionIntervalMs) continue;
       const action = chooseAiAction(state, player.id);
@@ -464,25 +466,31 @@ export class Room {
     this.scoutCache = { hexCount: rules.hexCount(state, human.id), points: human.points, updatedAt: now };
   }
 
-  private maybeDeclareWar(state: GameState, aiId: number): void {
-    const sideStrength = (id: number) => {
-      const side = [id, ...rules.alliesOf(state, id)];
-      return {
-        hexes: side.reduce((sum, pid) => sum + rules.hexCount(state, pid), 0),
-        points: side.reduce((sum, pid) => sum + (state.players.find((p) => p.id === pid)?.points ?? 0), 0),
-      };
-    };
-    const aiSide = sideStrength(aiId);
-    for (const target of state.players) {
-      if (target.id === aiId || target.eliminated) continue;
-      const rel = rules.relation(state, aiId, target.id);
-      if (rel === 'war' || rel === 'alliance') continue;
-      const cooldownUntil = this.peaceCooldowns.get(`${aiId}-${target.id}`);
-      if (cooldownUntil !== undefined && Date.now() < cooldownUntil) continue;
-      const targetSide = target.isAi ? sideStrength(target.id) : { hexes: this.scoutCache?.hexCount ?? 0, points: this.scoutCache?.points ?? 0 };
-      if (aiSide.hexes > targetSide.hexes || aiSide.points > targetSide.points) {
-        rules.declareWar(state, aiId, target.id);
-        this.addLog(`${this.playerName(aiId)} declared war on ${this.playerName(target.id)}`, 'war');
+  private handleAiDiplomacy(state: GameState, aiId: number): void {
+    const action = chooseDiplomacyAction(state, aiId, { scout: this.scoutCache });
+    if (!action) return;
+    const aiName = this.playerName(aiId);
+    const targetName = this.playerName(action.targetId);
+    switch (action.type) {
+      case 'declare-war': {
+        if (rules.relation(state, aiId, action.targetId) === 'war') return;
+        const cooldownUntil = this.peaceCooldowns.get(`${aiId}-${action.targetId}`);
+        if (cooldownUntil !== undefined && Date.now() < cooldownUntil) return;
+        rules.declareWar(state, aiId, action.targetId);
+        this.addLog(`${aiName} declared war on ${targetName}`, 'war');
+        return;
+      }
+      case 'propose-peace':
+      case 'propose-alliance': {
+        const kind = action.type === 'propose-peace' ? 'peace' : 'alliance';
+        if (this.pendingProposals.some((p) => p.from === aiId && p.to === action.targetId && p.kind === kind)) return;
+        const key = `${aiId}-${action.targetId}-${kind}`;
+        const cooldownUntil = this.proposalCooldowns.get(key);
+        if (cooldownUntil !== undefined && Date.now() < cooldownUntil) return;
+        this.pendingProposals.push({ from: aiId, to: action.targetId, kind });
+        this.proposalCooldowns.set(key, Date.now() + 30000);
+        this.addLog(`${aiName} proposes ${kind} to ${targetName}`, 'diplomacy');
+        return;
       }
     }
   }
@@ -495,6 +503,11 @@ export class Room {
       for (const [key] of this.peaceCooldowns) {
         if (key.startsWith(`${elim.eliminatedId}-`) || key.endsWith(`-${elim.eliminatedId}`)) {
           this.peaceCooldowns.delete(key);
+        }
+      }
+      for (const [key] of this.proposalCooldowns) {
+        if (key.startsWith(`${elim.eliminatedId}-`) || key.includes(`-${elim.eliminatedId}-`)) {
+          this.proposalCooldowns.delete(key);
         }
       }
       this.addLog(`${this.playerName(elim.eliminatedId)} lost the capital and left the game`);
