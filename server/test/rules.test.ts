@@ -884,11 +884,11 @@ describe('дипломатия', () => {
 });
 
 describe('крепость', () => {
-  it('лимит построек: floor(клетки/15)', () => {
-    expect(fortressLimit(14)).toBe(0);
-    expect(fortressLimit(15)).toBe(1);
-    expect(fortressLimit(30)).toBe(2);
-    expect(fortressLimit(45)).toBe(3);
+  it('лимит построек: floor(клетки/10)', () => {
+    expect(fortressLimit(9)).toBe(0);
+    expect(fortressLimit(10)).toBe(1);
+    expect(fortressLimit(30)).toBe(3);
+    expect(fortressLimit(45)).toBe(4);
   });
   it('лимит очков уменьшается на 100 за крепость', () => {
     expect(pointLimit(10)).toBe(1500);

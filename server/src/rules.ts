@@ -93,7 +93,7 @@ export function terrainCost(terrain: Terrain): number {
 }
 
 export function fortressLimit(hexCount: number): number {
-  return Math.floor(hexCount / 15);
+  return Math.floor(hexCount / 10);
 }
 
 export function fortressCount(state: GameState, playerId: number): number {

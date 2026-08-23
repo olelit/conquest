@@ -69,7 +69,7 @@ export function fortressReady(state: GameState, playerId: number): boolean {
   const hexCount = myHexCount(state, playerId);
   const fortressCount = state.hexes.filter((h) => h.ownerId === playerId && h.fortress).length;
   const points = state.players.find((p) => p.id === playerId)?.points ?? 0;
-  if (Math.floor(hexCount / 15) <= fortressCount) return false;
+  if (Math.floor(hexCount / 10) <= fortressCount) return false;
   const nextLimit = 1000 + hexCount * 50 - 100 * (fortressCount + 1);
   return points <= nextLimit;
 }
