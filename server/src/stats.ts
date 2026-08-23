@@ -1,6 +1,3 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 export type StatsEvent =
   | { type: 'start'; t: number; mapType: string; players: { id: number; name: string; isAi: boolean; incomeMultiplier: number }[] }
   | { type: 'action'; t: number; playerId: number; action: 'capture' | 'attack' | 'defend'; q: number; r: number }
@@ -33,8 +30,6 @@ export interface StatsSummary {
 export class GameStatsRecorder {
   private readonly recorded: StatsEvent[] = [];
 
-  constructor(private readonly roomId: number) {}
-
   get events(): StatsEvent[] {
     return [...this.recorded];
   }
@@ -47,22 +42,7 @@ export class GameStatsRecorder {
     this.recorded.length = 0;
   }
 
-  writeSummary(statsDir: string): string {
-    if (this.recorded.length === 0) return '';
-    mkdirSync(statsDir, { recursive: true });
-    const starts = this.recorded.filter((e) => e.type === 'start');
-    const ends = this.recorded.filter((e) => e.type === 'end');
-    const lastStart = starts[starts.length - 1];
-    const lastEnd = ends[ends.length - 1];
-    const startedAt = lastStart ? lastStart.t : Date.now();
-    const path = join(statsDir, `${this.roomId}-${startedAt}.json`);
-    const summary = this.buildSummary();
-    const payload = { meta: { roomId: this.roomId, startedAt }, summary, events: this.recorded };
-    writeFileSync(path, JSON.stringify(payload, null, 2));
-    return path;
-  }
-
-  private buildSummary(): StatsSummary {
+  buildSummary(): StatsSummary {
     const starts = this.recorded.filter((e) => e.type === 'start');
     const ends = this.recorded.filter((e) => e.type === 'end');
     const lastStart = starts[starts.length - 1];
