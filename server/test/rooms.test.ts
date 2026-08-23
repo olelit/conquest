@@ -684,14 +684,14 @@ describe('Room: дипломатия', () => {
     const ai = g.players.find((p) => p.isAi)!;
     const enemy = room.view(1).game!.players.find((p) => p.id === ai.id)!;
     expect(enemy.points).toBeNull();
-    expect(enemy.relation).toBe('enemy');
+    expect(enemy.relation).toBe('peace');
     const self = room.view(1).game!.players.find((p) => p.id === 1)!;
     expect(self.points).not.toBeNull();
     expect(self.relation).toBe('self');
     rules.makeAlliance(g, 1, ai.id);
     const ally = room.view(1).game!.players.find((p) => p.id === ai.id)!;
     expect(ally.points).not.toBeNull();
-    expect(ally.relation).toBe('ally');
+    expect(ally.relation).toBe('alliance');
   });
   it('view: входящие предложения видны адресату', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);

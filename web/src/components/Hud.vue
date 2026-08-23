@@ -37,7 +37,7 @@ function pointsText(p: Player): string {
       :class="{
         'player-list__row--me': p.id === humanId,
         'player-list__row--dead': p.eliminated,
-        'player-list__row--ally': p.relation === 'ally',
+        'player-list__row--ally': p.relation === 'alliance',
       }"
     >
       <span class="player-list__name" :style="{ color: colorOf(p) }">{{ p.name }}</span>

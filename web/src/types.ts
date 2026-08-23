@@ -59,7 +59,7 @@ export interface Player {
   isAi: boolean;
   capital: { q: number; r: number } | null;
   eliminated: boolean;
-  relation: 'self' | 'ally' | 'enemy';
+  relation: 'self' | 'peace' | 'war' | 'alliance';
 }
 
 export interface PendingProposal {

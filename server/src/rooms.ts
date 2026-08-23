@@ -28,7 +28,7 @@ export interface ViewPlayer {
   isAi: boolean;
   capital: { q: number; r: number } | null;
   eliminated: boolean;
-  relation: 'self' | 'ally' | 'enemy';
+  relation: 'self' | 'peace' | 'war' | 'alliance';
 }
 
 export interface ViewGame {
@@ -691,8 +691,8 @@ export class Room {
       game: state
         ? {
             players: state.players.map((p) => {
-              const rel = p.id === playerId ? 'self' : playerId !== null && rules.relation(state, playerId, p.id) === 'alliance' ? 'ally' : 'enemy';
-              const hidden = playerId !== null && rel === 'enemy';
+              const rel = p.id === playerId ? 'self' : playerId !== null ? rules.relation(state, playerId, p.id) : 'peace';
+              const hidden = playerId !== null && (rel === 'peace' || rel === 'war');
               return {
                 id: p.id,
                 name: p.name ?? `Player ${p.id}`,

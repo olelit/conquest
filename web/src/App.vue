@@ -249,7 +249,7 @@ function onContextMenu(payload: { hex: Hex; x: number; y: number }): void {
   if (!g) return;
   const owner = g.players.find((p) => p.id === payload.hex.ownerId);
   if (!owner) return;
-  const relation = owner.id === playerId.value ? 'peace' : owner.relation === 'ally' ? 'alliance' : 'war';
+  const relation: 'peace' | 'war' | 'alliance' = owner.id === playerId.value ? 'peace' : (owner.relation as 'peace' | 'war' | 'alliance');
   const pendingFromOwner = g.pendingProposals.find((p) => p.from === owner.id) ?? null;
   contextMenu.value = { ...payload, relation, pendingFromOwner };
 }
