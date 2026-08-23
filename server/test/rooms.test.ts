@@ -1,7 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as rules from '../src/rules.js';
 import { Room, RoomManager } from '../src/rooms.js';
 import type { Difficulty } from '../src/config.js';
+
+vi.mock('../src/db.js', () => ({
+  dumpsRepository: { save: vi.fn(async () => 1), list: vi.fn(async () => []) },
+  usersRepository: { upsertBySub: vi.fn(async () => {}), list: vi.fn(async () => []) },
+}));
+
+import { dumpsRepository } from '../src/db.js';
+
+beforeEach(() => {
+  vi.mocked(dumpsRepository.save).mockClear();
+});
 
 function makeRoom(aiMode = false, aiCount = 1, maxPlayers = 4): Room {
   return new Room(1, 'Тест', 'normal', maxPlayers, aiMode, aiCount);
@@ -329,6 +340,7 @@ describe('RoomManager', () => {
     m.connectionClosed(2);
     m.tickAll();
     expect(m.roomCount).toBe(0);
+    expect(vi.mocked(dumpsRepository.save)).toHaveBeenCalledTimes(1);
   });
   it('завершённая игра удаляется после grace-периода (grace 0)', () => {
     const m = new RoomManager(0);
@@ -340,6 +352,7 @@ describe('RoomManager', () => {
     expect(m.roomCount).toBe(0);
     expect(m.roomForConn(1)).toBeNull();
     expect(m.roomForConn(2)).toBeNull();
+    expect(vi.mocked(dumpsRepository.save)).toHaveBeenCalledTimes(1);
   });
   it('завершённая игра живёт внутри grace-периода', () => {
     const m = new RoomManager(60_000);
@@ -349,6 +362,7 @@ describe('RoomManager', () => {
     m.roomForConn(1)!.gameState!.winnerId = 1;
     m.tickAll();
     expect(m.roomCount).toBe(1);
+    expect(vi.mocked(dumpsRepository.save)).toHaveBeenCalledTimes(1);
   });
 });
 

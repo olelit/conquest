@@ -147,6 +147,7 @@ export class Room {
   private proposalCooldowns = new Map<string, number>();
 
   readonly stats: GameStatsRecorder;
+  private autoDumped = false;
   private tickCounter = 0;
   private startedAt = 0;
   private attackStartedAt = new Map<string, number>();
@@ -240,6 +241,7 @@ export class Room {
     this.addLog('New game started');
     this.startedAt = Date.now();
     this.tickCounter = 0;
+    this.autoDumped = false;
     this.stats.record({
       type: 'start',
       t: this.startedAt,
@@ -299,6 +301,7 @@ export class Room {
     this.eliminationSpawned.clear();
     this.lastCapturerId = null;
     this.stats.clear();
+    this.autoDumped = false;
     this.startedAt = Date.now();
     this.tickCounter = 0;
     this.stats.record({
@@ -324,6 +327,7 @@ export class Room {
       if (this.finishedAt === null) {
         this.finishedAt = Date.now();
         this.stats.record({ type: 'end', t: this.finishedAt, winnerId: state.winnerId, durationMs: this.finishedAt - this.startedAt });
+        void this.dumpToDb();
       }
       return;
     }
@@ -765,6 +769,23 @@ export class Room {
     };
   }
 
+  async dumpToDb(): Promise<void> {
+    if (this.autoDumped) return;
+    this.autoDumped = true;
+    try {
+      await dumpsRepository.save({
+        roomId: this.id,
+        roomName: this.name,
+        mapType: this.mapType,
+        note: null,
+        auto: true,
+        state: this.dumpState(),
+      });
+    } catch (err) {
+      console.error('auto dump failed:', err);
+    }
+  }
+
   private nextSlotId(): number {
     return Math.max(0, ...this.slots.map((s) => s.id)) + 1;
   }
@@ -1097,6 +1118,9 @@ export class RoomManager {
   }
 
   private removeRoom(room: Room): void {
+    if (room.stats.events.length > 0) {
+      void room.dumpToDb();
+    }
     this.rooms.delete(room.id);
     for (const [conn, roomId] of this.connToRoom) {
       if (roomId === room.id) this.connToRoom.delete(conn);
