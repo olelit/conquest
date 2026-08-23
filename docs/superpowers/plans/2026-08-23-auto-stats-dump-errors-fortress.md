@@ -438,18 +438,18 @@ git commit -m "feat: web — ошибки действий видны 3.5 с"
 
 - [ ] **Step 1: Обновить тест лимита (TDD red)**
 
-В `server/test/rules.test.ts` (строка ~889) заменить:
+В `server/test/rules.test.ts` заменить весь тест «лимит построек: floor(клетки/15)» (строки ~887–892) на:
 
 ```ts
-expect(fortressLimit(15)).toBe(1);
+  it('лимит построек: floor(клетки/10)', () => {
+    expect(fortressLimit(9)).toBe(0);
+    expect(fortressLimit(10)).toBe(1);
+    expect(fortressLimit(30)).toBe(3);
+    expect(fortressLimit(45)).toBe(4);
+  });
 ```
 
-на:
-
-```ts
-expect(fortressLimit(10)).toBe(1);
-expect(fortressLimit(9)).toBe(0);
-```
+Примечание: заменяется весь блок из четырёх ассертов — при `/10` старые значения (14→0, 30→2, 45→3) неверны.
 
 - [ ] **Step 2: Запустить тест — убедиться, что падает**
 
