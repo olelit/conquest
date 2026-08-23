@@ -61,6 +61,9 @@ export class GameDumpEntity {
   @Column({ name: 'note', type: 'text', nullable: true })
   note!: string | null;
 
+  @Column({ name: 'auto', type: 'boolean', default: false })
+  auto!: boolean;
+
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt!: Date;
 
@@ -120,21 +123,22 @@ export class DumpsRepository {
     return this.dataSource.getRepository(GameDumpEntity);
   }
 
-  async save(dump: { roomId: number; roomName: string; mapType: string; note: string | null; state: unknown }): Promise<number> {
+  async save(dump: { roomId: number; roomName: string; mapType: string; note: string | null; state: unknown; auto?: boolean }): Promise<number> {
     const entity = await this.repo().save({
       roomId: dump.roomId,
       roomName: dump.roomName,
       mapType: dump.mapType,
       note: dump.note ?? null,
+      auto: dump.auto ?? false,
       state: dump.state,
     });
     return entity.id;
   }
 
-  async list(): Promise<{ id: number; roomId: number; roomName: string; mapType: string; note: string | null; createdAt: Date }[]> {
+  async list(): Promise<{ id: number; roomId: number; roomName: string; mapType: string; note: string | null; auto: boolean; createdAt: Date }[]> {
     return this.repo().find({
       order: { id: 'DESC' },
-      select: ['id', 'roomId', 'roomName', 'mapType', 'note', 'createdAt'],
+      select: ['id', 'roomId', 'roomName', 'mapType', 'note', 'auto', 'createdAt'],
     });
   }
 
