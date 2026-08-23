@@ -814,14 +814,16 @@ describe('chooseDiplomacyAction', () => {
     ], 100, 100);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toBeNull();
   });
-  it('не объявляет войну, если цель сильнее', () => {
+  it('не объявляет войну, если цель сильнее — вместо этого предлагает союз', () => {
     const s = makeDiploState([
       { q: 7, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P },
       { q: 5, r: 5, ownerId: P },
       { q: 5, r: 6, ownerId: P },
     ]);
-    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 3, points: 1000 } })).toBeNull();
+    const action = chooseDiplomacyAction(s, AI, { scout: { hexCount: 3, points: 1000 } });
+    expect(action).not.toEqual({ type: 'declare-war', targetId: P });
+    expect(action).toEqual({ type: 'propose-alliance', targetId: P });
   });
   it('предлагает мир, когда проигрывает в войне', () => {
     const s = makeDiploState([
@@ -850,7 +852,7 @@ describe('chooseDiplomacyAction', () => {
       { q: 7, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P },
       { q: 10, r: 10, ownerId: 3 },
-    ], 1000, 1000, 1000);
+    ], 500, 1000, 1000);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
   });
 });
