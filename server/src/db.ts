@@ -188,6 +188,51 @@ export class FeedbackRepository {
   }
 }
 
+@Entity('users')
+export class UserEntity {
+  @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
+  id!: number;
+
+  @Column({ name: 'sub', type: 'text', unique: true })
+  sub!: string;
+
+  @Column({ name: 'email', type: 'text' })
+  email!: string;
+
+  @Column({ name: 'name', type: 'text' })
+  name!: string;
+
+  @Column({ name: 'first_seen_at', type: 'timestamptz', default: () => 'now()' })
+  firstSeenAt!: Date;
+
+  @Column({ name: 'last_seen_at', type: 'timestamptz', default: () => 'now()' })
+  lastSeenAt!: Date;
+}
+
+export class UsersRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  private repo(): Repository<UserEntity> {
+    return this.dataSource.getRepository(UserEntity);
+  }
+
+  async upsertBySub(sub: string, email: string, name: string): Promise<void> {
+    const existing = await this.repo().findOneBy({ sub });
+    if (existing) {
+      existing.email = email;
+      existing.name = name;
+      existing.lastSeenAt = new Date();
+      await this.repo().save(existing);
+    } else {
+      await this.repo().save({ sub, email, name, firstSeenAt: new Date(), lastSeenAt: new Date() });
+    }
+  }
+
+  async list(): Promise<UserEntity[]> {
+    return this.repo().find({ order: { lastSeenAt: 'DESC' } });
+  }
+}
+
 export const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.PGHOST ?? 'localhost',
@@ -195,7 +240,7 @@ export const dataSource = new DataSource({
   username: process.env.PGUSER ?? 'conquest',
   password: process.env.PGPASSWORD ?? 'conquest',
   database: process.env.PGDATABASE ?? 'conquest_db',
-  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity, FeedbackEntity],
+  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity, FeedbackEntity, UserEntity],
   synchronize: true,
 });
 
@@ -203,6 +248,7 @@ export const playersRepository = new PlayersRepository(dataSource);
 export const dumpsRepository = new DumpsRepository(dataSource);
 export const adminCredentialsRepository = new AdminCredentialsRepository(dataSource);
 export const feedbackRepository = new FeedbackRepository(dataSource);
+export const usersRepository = new UsersRepository(dataSource);
 
 export async function initDb(): Promise<void> {
   await dataSource.initialize();
