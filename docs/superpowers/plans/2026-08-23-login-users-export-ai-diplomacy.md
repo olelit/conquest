@@ -351,7 +351,9 @@ git add server/src/db.ts server/test/users-repo.test.ts
 git commit -m "feat: таблица users — сущность и репозиторий с upsertBySub"
 ```
 
----### Task 3: upsert при Google-входе, админ-эндпоинт /users, блок в админке
+---
+
+### Task 3: upsert при Google-входе, админ-эндпоинт /users, блок в админке
 
 **Files:**
 - Modify: `server/src/rooms.ts` (handleAuth), `server/src/admin.ts`, `server/src/index.ts`, `server/test/admin-http.test.ts`, `server/public/admin.html`
@@ -748,7 +750,9 @@ git add web/src/App.vue web/src/i18n.ts
 git commit -m "feat: web — кнопка Google всегда видна, экспорт на экране завершения, шрифт лога 14px"
 ```
 
----### Task 6: ai.ts — чистая функция chooseDiplomacyAction
+---
+
+### Task 6: ai.ts — чистая функция chooseDiplomacyAction
 
 **Files:**
 - Modify: `server/src/ai.ts`
