@@ -258,7 +258,7 @@ async function loadDumps() {
         <td>#${d.id}</td>
         <td>${esc(d.roomName)}</td>
         <td>${esc(d.mapType)}</td>
-        <td>${d.note ? esc(d.note) : '—'}</td>
+        <td>${d.auto ? '<span class="badge">авто</span> ' : ''}${d.note ? esc(d.note) : '—'}</td>
         <td>${new Date(d.createdAt).toLocaleString()}</td>
         <td><button class="ghost" data-view="${d.id}">Открыть</button></td>
       </tr>`).join('') || '<tr><td colspan="6" class="note">Дампов нет</td></tr>';
