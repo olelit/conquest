@@ -53,6 +53,7 @@ const loadTestPlayers = ref(10);
 const victoryDismissed = ref(false);
 const isAdmin = ref(false);
 const dumpMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null);
+const googleMsg = ref<string | null>(null);
 
 const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
@@ -359,10 +360,9 @@ function onRestart(): void {
   }
 }
 
-async function onDumpGame(): Promise<void> {
+async function onExportGame(): Promise<void> {
   if (!room.value) return;
-  const note = window.prompt(t('burger.dumpNote'), '') ?? '';
-  const result = await adminDumpRoom(room.value.id, note.trim());
+  const result = await adminDumpRoom(room.value.id);
   if (result.ok) {
     dumpMsg.value = { kind: 'ok', text: t('dump.saved', { id: result.id }) };
   } else {
@@ -429,6 +429,13 @@ function onToMenu(): void {
   client.sendToMenu();
 }
 
+function onGoogleNotConfigured(): void {
+  googleMsg.value = t('menu.googleNotConfigured');
+  window.setTimeout(() => {
+    googleMsg.value = null;
+  }, 4000);
+}
+
 function initGoogleButton(): void {
   if (!GOOGLE_CLIENT_ID || !window.google) return;
   const el = document.getElementById('google-btn');
@@ -476,9 +483,11 @@ onBeforeUnmount(() => {
         <button class="menu__btn" :disabled="!connected" @click="startTutorial">{{ t('menu.tutorial') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLobby">{{ t('menu.playVsHumans') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">{{ t('menu.loadTest') }}</button>
-        <div v-if="GOOGLE_CLIENT_ID" class="menu__google">
+        <div class="menu__google">
           <div v-if="auth" class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</div>
-          <div v-else id="google-btn"></div>
+          <div v-else-if="GOOGLE_CLIENT_ID" id="google-btn"></div>
+          <button v-else class="menu__btn menu__btn--ghost" @click="onGoogleNotConfigured">{{ t('menu.signInGoogle') }}</button>
+          <div v-if="googleMsg" class="menu__google-err">{{ googleMsg }}</div>
         </div>
         <div class="menu__lang">
           <button class="menu__lang-btn" :class="{ 'is-active': lang === 'en' }" @click="setLang('en')">EN</button>
@@ -599,6 +608,9 @@ onBeforeUnmount(() => {
         <div v-else-if="!connected" class="banner banner--warn">{{ t('banner.connecting') }}</div>
         <div v-if="error" class="banner banner--error">{{ error }}</div>
         <div v-if="dumpMsg" class="banner" :class="dumpMsg.kind === 'ok' ? 'banner--warn' : 'banner--error'">{{ dumpMsg.text }}</div>
+        <div v-if="winner && isAdmin" class="export-overlay">
+          <button class="export-overlay__btn" @click="onExportGame">{{ t('dump.export') }}</button>
+        </div>
         <div v-if="showVictoryModal" class="victory-modal">
           <div class="victory-modal__card">
             <div class="victory-modal__title">{{ t('victory.title') }}</div>
@@ -657,7 +669,6 @@ onBeforeUnmount(() => {
     <div v-if="burgerOpen" class="burger-overlay" @click.self="burgerOpen = false">
       <div class="burger-menu">
         <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">{{ t('burger.restart') }}</button>
-        <button v-if="isAdmin && room" class="burger-menu__item" @click="onDumpGame">{{ t('burger.dumpGame') }}</button>
         <button class="burger-menu__item" @click="onToMenu">{{ t('burger.toMenu') }}</button>
       </div>
     </div>
@@ -889,6 +900,12 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
+.menu__google-err {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
 .lobby {
   display: flex;
   flex-direction: column;
@@ -1001,6 +1018,28 @@ onBeforeUnmount(() => {
   z-index: 70;
 }
 
+.export-overlay {
+  position: fixed;
+  top: calc(50% + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+}
+
+.export-overlay__btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  background: #2196f3;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.export-overlay__btn:hover {
+  background: #1976d2;
+}
+
 .victory-modal__card {
   background: rgba(20, 20, 26, 0.96);
   border: 1px solid #888;
@@ -1053,7 +1092,7 @@ onBeforeUnmount(() => {
   border: 1px solid #444;
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: 14px;
   font-family: monospace;
   color: #ccc;
   display: flex;
