@@ -28,6 +28,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const connected = ref(false);
 const error = ref<string | null>(null);
+let errorTimer: number | undefined;
 const auth = ref<AuthProfile | null>(null);
 const rooms = ref<RoomLobbyInfo[]>([]);
 const room = ref<RoomView | null>(null);
@@ -195,10 +196,13 @@ client.onState = (_state, pid, authProfile, rms, rm) => {
   auth.value = authProfile;
   rooms.value = rms;
   room.value = rm;
-  error.value = null;
 };
 client.onError = (message) => {
   error.value = message;
+  window.clearTimeout(errorTimer);
+  errorTimer = window.setTimeout(() => {
+    error.value = null;
+  }, 3500);
 };
 client.onStatus = (isConnected) => {
   connected.value = isConnected;
