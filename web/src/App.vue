@@ -141,6 +141,17 @@ watch(
   },
 );
 
+watch(
+  () => winner.value,
+  (w) => {
+    if (w !== null) {
+      adminMe().then((m) => {
+        isAdmin.value = m.authenticated;
+      });
+    }
+  },
+);
+
 onMounted(() => {
   adminMe().then((m) => {
     isAdmin.value = m.authenticated;
