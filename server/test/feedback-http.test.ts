@@ -49,7 +49,7 @@ const stub = makeFeedbackStub();
 beforeAll(async () => {
   const app = express();
   app.use(express.json());
-  registerFeedbackRoutes(app, stub as never, new SlidingWindowLimiter(60000), 3);
+  registerFeedbackRoutes(app, stub as never, new SlidingWindowLimiter(60000), 3, true);
   const adminCreds = {
     get: async () => ({ id: 1, username: 'admin', passwordHash: await hashPassword('admin'), sessionSecret: 's' }),
     updateCredentials: async () => {},
@@ -164,5 +164,37 @@ describe('feedback: админ-роуты', () => {
   it('неавторизованный запрос → 401', async () => {
     const res = await fetch(`${base}/api/admin/feedback`);
     expect(res.status).toBe(401);
+  });
+});
+
+describe('feedback: trustProxy выключен', () => {
+  let server2: ReturnType<typeof createServer>;
+  let base2 = '';
+  const stub2 = makeFeedbackStub();
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    registerFeedbackRoutes(app, stub2 as never, new SlidingWindowLimiter(60000), 3, false);
+    server2 = createServer(app);
+    await new Promise<void>((resolve) => server2.listen(0, '127.0.0.1', resolve));
+    base2 = `http://127.0.0.1:${(server2.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() =>
+    new Promise<void>((resolve) => {
+      server2.close(() => resolve());
+      server2.closeAllConnections();
+    }),
+  );
+
+  it('игнорирует X-Forwarded-For, когда trustProxy выключен', async () => {
+    const res = await fetch(`${base2}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '1.2.3.4' },
+      body: JSON.stringify({ text: 'hi' }),
+    });
+    expect(res.status).toBe(200);
+    expect(stub2.rows[0].ip).not.toBe('1.2.3.4');
   });
 });

@@ -30,6 +30,8 @@ services:
       # Admin панель (/admin): в проде обязательно задай CONQUEST_ADMIN_USER и CONQUEST_ADMIN_PASSWORD
       CONQUEST_ADMIN_USER: ${CONQUEST_ADMIN_USER:-admin}
       CONQUEST_ADMIN_PASSWORD: ${CONQUEST_ADMIN_PASSWORD:-admin}
+      # API за nginx (web:8080) — доверять X-Real-IP/X-Forwarded-For от прокси
+      CONQUEST_TRUST_PROXY: "1"
     depends_on:
       postgres:
         condition: service_healthy

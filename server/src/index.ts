@@ -41,7 +41,7 @@ async function main(): Promise<void> {
 
   const manager = new RoomManager();
   const feedbackLimiter = new SlidingWindowLimiter(60000);
-  registerFeedbackRoutes(app, feedbackRepository, feedbackLimiter, config.feedbackRateLimit);
+  registerFeedbackRoutes(app, feedbackRepository, feedbackLimiter, config.feedbackRateLimit, config.trustProxy);
   registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository, usersRepository, feedbackRepository);
   registerAuthRoutes(app, usersRepository);
 

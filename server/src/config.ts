@@ -43,4 +43,5 @@ export const config = {
   adminUser: process.env.CONQUEST_ADMIN_USER ?? 'admin',
   adminPassword: process.env.CONQUEST_ADMIN_PASSWORD ?? 'admin',
   feedbackRateLimit: number('CONQUEST_FEEDBACK_RATE_LIMIT', 3),
+  trustProxy: process.env.CONQUEST_TRUST_PROXY === '1',
 };
