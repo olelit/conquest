@@ -285,4 +285,26 @@ describe('chooseDiplomacyAction', () => {
     ], 500, 1000, 1000);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
   });
+  it('объявляет войну через зазор в 1 нейтральный гекс', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 9, r: 5, ownerId: P },
+    ]);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toEqual({ type: 'declare-war', targetId: P });
+  });
+  it('не объявляет войну, если между территориями 2+ нейтральных гекса', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 10, r: 5, ownerId: P },
+    ], 2000, 100);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toBeNull();
+  });
+  it('не предлагает союз цели без территории', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 10, r: 10, ownerId: 3 },
+      { q: 11, r: 10, ownerId: 3 },
+    ], 1000, 1000, 1000);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 0, points: 1000 } })).toBeNull();
+  });
 });

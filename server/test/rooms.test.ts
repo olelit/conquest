@@ -650,6 +650,20 @@ describe('Room: дипломатия', () => {
     room.tick();
     expect(rules.relation(g, 1, ai.id)).toBe('peace');
   });
+  it('агрессия ИИ: объявляет войну через зазор в 1 нейтральный гекс', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(6, 5).ownerId = 1;
+    g.players[0].capital = { q: 6, r: 5 };
+    find(8, 5).ownerId = ai.id;
+    g.players[1].capital = { q: 8, r: 5 };
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('war');
+  });
   it('после принятия мира ИИ не переобъявляет войну в течение кулдауна', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
     room.addHuman('A', 1);

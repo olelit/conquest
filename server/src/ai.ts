@@ -209,7 +209,7 @@ export function chooseDiplomacyAction(
     let border: HexState | null = null;
     for (const hex of state.hexes) {
       if (hex.ownerId !== target.id) continue;
-      if (!hasAdjacentOwner(state, hex.q, hex.r, aiId)) continue;
+      if (!inContactZone(state, hex, aiId)) continue;
       if (border === null || terrainCost(hex.terrain) < terrainCost(border.terrain)) border = hex;
     }
     if (!border) continue;
@@ -239,6 +239,7 @@ export function chooseDiplomacyAction(
     const rel = relation(state, aiId, target.id);
     if (rel === 'war' || rel === 'alliance') continue;
     const targetStr = target.isAi ? strength(target.id) : scoutStr;
+    if (targetStr.hexes < 1) continue;
     const aiStr = strength(aiId);
     const targetAtWar = state.players.some(
       (p) => p.id !== target.id && p.id !== aiId && relation(state, target.id, p.id) === 'war',
@@ -251,4 +252,17 @@ export function chooseDiplomacyAction(
   }
 
   return null;
+}
+
+// Контактная зона: гекс цели примыкает к территории ИИ напрямую либо
+// отделён одним нейтральным гексом (правило зазора — мирные соседи не могут
+// захватить пограничный гекс, поэтому прямой границы может не быть).
+function inContactZone(state: GameState, hex: HexState, aiId: number): boolean {
+  if (hasAdjacentOwner(state, hex.q, hex.r, aiId)) return true;
+  for (const [dq, dr] of NEIGHBOR_OFFSETS) {
+    const n = findHex(state, hex.q + dq, hex.r + dr);
+    if (n === undefined || n.ownerId !== null) continue;
+    if (hasAdjacentOwner(state, n.q, n.r, aiId)) return true;
+  }
+  return false;
 }
