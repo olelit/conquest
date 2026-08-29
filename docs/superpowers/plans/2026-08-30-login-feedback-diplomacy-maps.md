@@ -1098,7 +1098,7 @@ const mapOptions = computed(() => Object.entries(MAP_INFO).filter(([, info]) => 
 на
 
 ```html
-          <option v-for="(type, info) in mapOptions" :key="type" :value="type">
+          <option v-for="[type, info] in mapOptions" :key="type" :value="type">
             {{ t(info.labelKey) }} — {{ t(info.descriptionKey) }}
           </option>
 ```
@@ -1409,7 +1409,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { registerAuthRoutes } from '../src/auth-routes.js';
-import { verifySessionToken } from '../src/auth.js';
+import { signSessionToken, verifySessionToken } from '../src/auth.js';
 
 interface UserRow {
   id: number;
@@ -1566,8 +1566,7 @@ describe('handleAuth через RoomManager', () => {
     stub.rows.length = 0;
     await register('user1', 'secret1');
     const row = stub.rows.find((u) => u.login === 'user1')!;
-    const { verifySessionToken: v, signSessionToken: s } = await import('../src/auth.js');
-    const token = s('user1', row.sessionSecret);
+    const token = signSessionToken('user1', row.sessionSecret);
     const { RoomManager } = await import('../src/rooms.js');
     const manager = new RoomManager(60_000, stub as never);
     const ok = await manager.handleAuth(1, token);
