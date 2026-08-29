@@ -22,6 +22,9 @@ const room = ref<RoomView | null>(null);
 const playerId = ref<number | null>(null);
 const screen = ref<'menu' | 'ai' | 'lobby' | 'loadtest'>('menu');
 const burgerOpen = ref(false);
+const feedbackOpen = ref(false);
+const feedbackText = ref('');
+const feedbackStatus = ref<'' | 'sent' | 'error' | 'rateLimited' | 'tooLong'>('');
 const army = ref(20);
 const contextMenu = ref<{
   hex: Hex;
@@ -296,6 +299,46 @@ function closeContextMenu(): void {
   contextMenu.value = null;
 }
 
+function openFeedback(): void {
+  feedbackText.value = '';
+  feedbackStatus.value = '';
+  feedbackOpen.value = true;
+}
+
+function closeFeedback(): void {
+  feedbackOpen.value = false;
+  feedbackStatus.value = '';
+}
+
+async function sendFeedback(): Promise<void> {
+  const text = feedbackText.value.trim();
+  if (text === '') {
+    feedbackStatus.value = 'error';
+    return;
+  }
+  feedbackStatus.value = '';
+  try {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (res.status === 429) {
+      feedbackStatus.value = 'rateLimited';
+      return;
+    }
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (res.ok && data.ok) {
+      feedbackText.value = '';
+      feedbackStatus.value = 'sent';
+      return;
+    }
+    feedbackStatus.value = data.error === 'too-long' ? 'tooLong' : 'error';
+  } catch {
+    feedbackStatus.value = 'error';
+  }
+}
+
 function onHotkey(e: KeyboardEvent): void {
   if ((e.target as HTMLElement | null)?.closest('input, select, textarea')) return;
   if (e.code === 'Escape') {
@@ -500,6 +543,7 @@ onBeforeUnmount(() => {
         <button class="menu__btn" :disabled="!connected" @click="startTutorial">{{ t('menu.tutorial') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLobby">{{ t('menu.playVsHumans') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">{{ t('menu.loadTest') }}</button>
+        <button class="menu__btn" @click="openFeedback">{{ t('menu.feedback') }}</button>
         <div class="menu__auth">
           <div v-if="auth" class="menu__auth-row">
             <span class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</span>
@@ -703,6 +747,27 @@ onBeforeUnmount(() => {
       <div class="burger-menu">
         <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">{{ t('burger.restart') }}</button>
         <button class="burger-menu__item" @click="onToMenu">{{ t('burger.toMenu') }}</button>
+      </div>
+    </div>
+
+    <div v-if="feedbackOpen" class="feedback-overlay" @click.self="closeFeedback">
+      <div class="feedback-modal">
+        <h2 class="feedback-modal__title">{{ t('feedback.title') }}</h2>
+        <textarea
+          v-model="feedbackText"
+          class="feedback-modal__input"
+          :placeholder="t('feedback.placeholder')"
+          maxlength="2000"
+          rows="4"
+        ></textarea>
+        <p v-if="feedbackStatus === 'sent'" class="feedback-modal__msg feedback-modal__msg--ok">{{ t('feedback.sent') }}</p>
+        <p v-else-if="feedbackStatus === 'rateLimited'" class="feedback-modal__msg feedback-modal__msg--err">{{ t('feedback.rateLimited') }}</p>
+        <p v-else-if="feedbackStatus === 'tooLong'" class="feedback-modal__msg feedback-modal__msg--err">{{ t('feedback.tooLong') }}</p>
+        <p v-else-if="feedbackStatus === 'error'" class="feedback-modal__msg feedback-modal__msg--err">{{ t('feedback.error') }}</p>
+        <div class="feedback-modal__row">
+          <button class="feedback-modal__btn" :disabled="feedbackStatus === 'sent'" @click="sendFeedback">{{ t('feedback.send') }}</button>
+          <button class="feedback-modal__btn feedback-modal__btn--ghost" @click="closeFeedback">{{ t('feedback.cancel') }}</button>
+        </div>
       </div>
     </div>
   </main>
@@ -1213,5 +1278,69 @@ onBeforeUnmount(() => {
 
 .burger-menu__item:hover {
   background: #2a2a31;
+}
+
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+.feedback-modal {
+  width: min(420px, 90vw);
+  background: #1e1e24;
+  border: 1px solid #444;
+  border-radius: 10px;
+  padding: 18px;
+}
+.feedback-modal__title {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.feedback-modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #14141a;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+  resize: vertical;
+}
+.feedback-modal__msg {
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+.feedback-modal__msg--ok {
+  color: #69db7c;
+}
+.feedback-modal__msg--err {
+  color: #ff6b6b;
+}
+.feedback-modal__row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.feedback-modal__btn {
+  background: #2196f3;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.feedback-modal__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.feedback-modal__btn--ghost {
+  background: #2a2a31;
+  border: 1px solid #555;
 }
 </style>

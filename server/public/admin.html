@@ -32,6 +32,7 @@
   .tab.active { background: #2196f3; }
   .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
   .field label { color: #999; font-size: 12px; }
+  .fb-unread { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -40,6 +41,7 @@
   <div id="tabs" class="tabs" style="display:none">
     <button class="tab active" data-tab="overview">Обзор</button>
     <button class="tab" data-tab="account">Аккаунт</button>
+    <button class="tab" data-tab="feedback">Отзывы</button>
   </div>
   <div id="view"></div>
 </div>
@@ -111,6 +113,7 @@ function switchTab(tab) {
   stopPoll();
   showTabs();
   if (tab === 'account') renderAccount();
+  else if (tab === 'feedback') renderFeedback();
   else renderDashboard();
 }
 
@@ -153,6 +156,62 @@ function renderAccount() {
     msg.className = 'err';
     msg.textContent = r.error || (res.status === 401 ? 'Сессия истекла' : 'Ошибка');
   };
+}
+
+async function renderFeedback() {
+  $('#view').innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <h2>Отзывы</h2>
+      <button class="ghost" id="fb-refresh">Обновить</button>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>#</th><th>Когда</th><th>IP</th><th>Текст</th><th></th><th></th></tr></thead>
+      <tbody id="fb-rows"></tbody>
+    </table></div>
+    <div id="fb-msg" class="note"></div>`;
+  $('#fb-refresh').onclick = () => loadFeedback();
+  await loadFeedback();
+}
+
+async function loadFeedback() {
+  const tbody = $('#fb-rows');
+  const msg = $('#fb-msg');
+  if (!tbody) return;
+  msg.className = 'note';
+  msg.textContent = 'Загрузка…';
+  try {
+    const r = await api('/api/admin/feedback');
+    const list = (r && Array.isArray(r.feedback) ? r.feedback : []);
+    msg.textContent = '';
+    tbody.innerHTML = list.map((f) => `
+      <tr class="${f.read ? '' : 'fb-unread'}">
+        <td>#${f.id}</td>
+        <td>${new Date(f.createdAt).toLocaleString()}</td>
+        <td>${esc(f.ip)}</td>
+        <td>${esc(f.text)}</td>
+        <td>${f.read ? '<span class="note">прочитано</span>' : ''}</td>
+        <td style="white-space:nowrap">
+          ${f.read ? '' : `<button class="ghost" data-read="${f.id}">Прочитано</button>`}
+          <button class="ghost" data-del="${f.id}">Удалить</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="6" class="note">Отзывов нет</td></tr>';
+    tbody.querySelectorAll('[data-read]').forEach((btn) => {
+      btn.onclick = async () => {
+        await api('/api/admin/feedback/' + btn.dataset.read + '/read', { method: 'POST' });
+        await loadFeedback();
+      };
+    });
+    tbody.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.onclick = async () => {
+        await api('/api/admin/feedback/' + btn.dataset.del, { method: 'DELETE' });
+        await loadFeedback();
+      };
+    });
+  } catch (e) {
+    if (e.message === 'UNAUTHORIZED') { boot(); return; }
+    msg.className = 'err';
+    msg.textContent = 'Ошибка загрузки';
+  }
 }
 
 function renderStatus(data) {
