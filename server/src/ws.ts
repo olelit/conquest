@@ -12,6 +12,7 @@ interface WsMessage {
   army?: number;
   kind?: string;
   accept?: boolean;
+  playerId?: number;
   token?: string;
   mapType?: string;
   maxPlayers?: number;
@@ -130,7 +131,7 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
           case 'build-fortress':
           case 'remove-fortress':
           case 'end-game': {
-            const result = manager.handleAction(connId, message as { type: string; q?: number; r?: number; kind?: string; accept?: boolean });
+            const result = manager.handleAction(connId, message as { type: string; q?: number; r?: number; kind?: string; accept?: boolean; playerId?: number });
             if (result.type === 'state') broadcast();
             else ws.send(JSON.stringify(result));
             return;

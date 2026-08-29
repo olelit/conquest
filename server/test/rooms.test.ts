@@ -602,6 +602,21 @@ describe('Room: дипломатия', () => {
     expect(result.type).toBe('state');
     expect(rules.relation(g, 1, ai.id)).toBe('alliance');
   });
+  it('respond-proposal по playerId: принимает предложение без координат гекса', () => {
+    const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = 1;
+    g.players[0].capital = { q: g.hexes[0].q, r: g.hexes[0].r };
+    g.hexes[1].ownerId = ai.id;
+    g.players[1].capital = { q: g.hexes[1].q, r: g.hexes[1].r };
+    room['pendingProposals'] = [{ from: ai.id, to: 1, kind: 'alliance' }];
+    const result = room.handleAction(1, 'respond-proposal', { playerId: ai.id, accept: true });
+    expect(result.type).toBe('state');
+    expect(rules.relation(g, 1, ai.id)).toBe('alliance');
+  });
   it('агрессия ИИ: объявляет войну соседу при перевесе сил', () => {
     const room = new Room(1, 'Тест', 'normal', 6, true, 1, () => 0.5);
     room.addHuman('A', 1);

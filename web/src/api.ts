@@ -104,6 +104,10 @@ export class GameClient {
     this.send({ type: 'respond-proposal', q, r, accept });
   }
 
+  sendRespondProposalTo(playerId: number, accept: boolean): void {
+    this.send({ type: 'respond-proposal', playerId, accept });
+  }
+
   sendBuildFortress(q: number, r: number): void {
     this.send({ type: 'build-fortress', q, r });
   }

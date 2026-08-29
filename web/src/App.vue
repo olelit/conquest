@@ -90,6 +90,20 @@ const createOptions = computed(() => {
 });
 const mapOptions = computed(() => Object.entries(MAP_INFO).filter(([, info]) => !info.hidden) as [MapType, (typeof MAP_INFO)[MapType]][]);
 
+const incomingProposals = computed(() => {
+  const g = game.value;
+  if (!g || playerId.value === null) return [];
+  return g.pendingProposals.filter((p) => p.to === playerId.value);
+});
+
+function proposalName(id: number): string {
+  return game.value?.players.find((p) => p.id === id)?.name ?? `#${id}`;
+}
+
+function respondProposal(from: number, accept: boolean): void {
+  client.sendRespondProposalTo(from, accept);
+}
+
 watch(aiMapType, () => {
   if (aiCount.value > aiMax.value) aiCount.value = aiMax.value;
   if (aiCount.value < 1) aiCount.value = 1;
@@ -705,6 +719,15 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <Hud v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" />
+        <div v-if="incomingProposals.length && !room.loadTest" class="diplomacy-panel">
+          <div v-for="p in incomingProposals" :key="p.from" class="diplomacy-panel__row">
+            <span class="diplomacy-panel__text">
+              {{ t('diplomacy.proposes', { name: proposalName(p.from), kind: p.kind === 'peace' ? t('diplomacy.peace') : t('diplomacy.alliance') }) }}
+            </span>
+            <button class="diplomacy-panel__btn" @click="respondProposal(p.from, true)">{{ t('diplomacy.accept') }}</button>
+            <button class="diplomacy-panel__btn diplomacy-panel__btn--ghost" @click="respondProposal(p.from, false)">{{ t('diplomacy.decline') }}</button>
+          </div>
+        </div>
         <FpsOverlay v-if="room.loadTest" />
         <div v-if="room && game && !room.loadTest" class="hotkeys-hint">{{ t('hotkeys.hint') }}</div>
         <HexMap
@@ -798,6 +821,54 @@ onBeforeUnmount(() => {
   padding: 4px 10px;
   pointer-events: none;
   white-space: nowrap;
+}
+
+.diplomacy-panel {
+  position: fixed;
+  top: 130px;
+  left: 16px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.diplomacy-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid #7cb342;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.diplomacy-panel__text {
+  flex: 1;
+}
+
+.diplomacy-panel__btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #2e7d32;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.diplomacy-panel__btn--ghost {
+  background: #2a2a31;
+  border: 1px solid #555;
+}
+
+.diplomacy-panel__btn:hover {
+  filter: brightness(1.15);
 }
 
 .app__header {

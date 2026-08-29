@@ -553,7 +553,7 @@ export class Room {
     }
   }
 
-  handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean }): ActionResult {
+  handleAction(connId: number, type: string, msg: { q?: number; r?: number; points?: number; army?: number; kind?: string; accept?: boolean; playerId?: number }): ActionResult {
     const playerId = this.slotForConn(connId);
     if (type === 'pause') {
       if (!this.aiMode) return { type: 'error', message: 'Pause is not available in human games' };
@@ -570,6 +570,9 @@ export class Room {
     }
     if (playerId === null) return { type: 'error', message: "You're not in this room" };
     if (this.status !== 'playing' || !this.state) return { type: 'error', message: 'The game has not started yet' };
+    if (type === 'respond-proposal' && typeof msg.playerId === 'number') {
+      return this.respondToProposal(playerId, msg.playerId, msg.accept);
+    }
     if (typeof msg.q !== 'number' || typeof msg.r !== 'number') {
       return { type: 'error', message: 'Invalid coordinates' };
     }
@@ -644,17 +647,7 @@ export class Room {
       case 'respond-proposal': {
         const proposer = this.targetPlayerId(playerId, msg);
         if (proposer === null) return { type: 'error', message: 'Hex owner not found' };
-        const idx = this.pendingProposals.findIndex((p) => p.from === proposer && p.to === playerId);
-        if (idx === -1) return { type: 'error', message: 'There is no proposal from this player' };
-        const [proposal] = this.pendingProposals.splice(idx, 1);
-        if (msg.accept) {
-          if (proposal.kind === 'peace') rules.makePeace(this.state!, playerId, proposer);
-          else rules.makeAlliance(this.state!, playerId, proposer);
-          this.addLog(`${this.playerName(playerId)} and ${this.playerName(proposer)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`, 'diplomacy');
-        } else {
-          this.addLog(`${this.playerName(playerId)} declined the proposal of ${this.playerName(proposer)}`);
-        }
-        return { type: 'state' };
+        return this.respondToProposal(playerId, proposer, msg.accept);
       }
       default:
         return { type: 'error', message: `Unknown message type: ${type}` };
@@ -850,6 +843,20 @@ export class Room {
     const hex = rules.findHex(this.state!, msg.q ?? 0, msg.r ?? 0);
     if (!hex || hex.ownerId === null || hex.ownerId === playerId) return null;
     return hex.ownerId;
+  }
+
+  private respondToProposal(playerId: number, proposer: number, accept: boolean | undefined): ActionResult {
+    const idx = this.pendingProposals.findIndex((p) => p.from === proposer && p.to === playerId);
+    if (idx === -1) return { type: 'error', message: 'There is no proposal from this player' };
+    const [proposal] = this.pendingProposals.splice(idx, 1);
+    if (accept) {
+      if (proposal.kind === 'peace') rules.makePeace(this.state!, playerId, proposer);
+      else rules.makeAlliance(this.state!, playerId, proposer);
+      this.addLog(`${this.playerName(playerId)} and ${this.playerName(proposer)} ${proposal.kind === 'peace' ? 'made peace' : 'formed an alliance'}`, 'diplomacy');
+    } else {
+      this.addLog(`${this.playerName(playerId)} declined the proposal of ${this.playerName(proposer)}`);
+    }
+    return { type: 'state' };
   }
 
   private addLog(message: string, kind: LogKind = 'info'): void {
