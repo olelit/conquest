@@ -26,7 +26,7 @@ beforeAll(async () => {
       { id: 2, sub: 's2', email: 'b@x.com', name: 'B', firstSeenAt: new Date('2026-08-03'), lastSeenAt: new Date('2026-08-04') },
     ],
   };
-  registerAdminRoutes(app, {} as never, {} as never, adminCreds as never, usersStub as never);
+  registerAdminRoutes(app, {} as never, {} as never, adminCreds as never, usersStub as never, {} as never);
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

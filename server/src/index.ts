@@ -1,11 +1,13 @@
 import http from 'http';
 import express from 'express';
-import { closeDb, initDb, dumpsRepository, adminCredentialsRepository, usersRepository } from './db.js';
+import { closeDb, initDb, dumpsRepository, adminCredentialsRepository, usersRepository, feedbackRepository } from './db.js';
 import { config } from './config.js';
 import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerAuthRoutes } from './auth-routes.js';
+import { registerFeedbackRoutes } from './feedback.js';
+import { SlidingWindowLimiter } from './rate-limit.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const MAX_DB_RETRIES = 15;
@@ -38,7 +40,9 @@ async function main(): Promise<void> {
   await connectWithRetry();
 
   const manager = new RoomManager();
-  registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository, usersRepository);
+  const feedbackLimiter = new SlidingWindowLimiter(60000);
+  registerFeedbackRoutes(app, feedbackRepository, feedbackLimiter, config.feedbackRateLimit);
+  registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository, usersRepository, feedbackRepository);
   registerAuthRoutes(app, usersRepository);
 
   if (process.env.NODE_ENV === 'production') {
@@ -60,6 +64,8 @@ async function main(): Promise<void> {
     manager.tickAll();
     broadcast();
   }, TICK_INTERVAL_MS);
+
+  setInterval(() => feedbackLimiter.sweep(), 60000);
 
   server.listen(PORT, () => console.log(`API listening on port ${PORT}`));
 }

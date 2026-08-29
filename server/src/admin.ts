@@ -5,7 +5,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { hashPassword, verifyPassword } from './password.js';
 import { listMaps } from './map.js';
 import type { RoomManager } from './rooms.js';
-import type { AdminCredentialsRepository, DumpsRepository, UsersRepository } from './db.js';
+import type { AdminCredentialsRepository, DumpsRepository, FeedbackRepository, UsersRepository } from './db.js';
 
 export const ADMIN_COOKIE = 'conquest_admin';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -117,6 +117,7 @@ export function registerAdminRoutes(
   dumps: DumpsRepository,
   adminCreds: AdminCredentialsRepository,
   users: UsersRepository,
+  feedback: FeedbackRepository,
 ): void {
   app.get('/admin', (_req, res) => {
     res.sendFile(join(import.meta.dirname, '..', 'public', 'admin.html'));
@@ -264,6 +265,51 @@ export function registerAdminRoutes(
     }
     clearAdminCookie(res);
     res.json({ ok: true });
+  });
+
+  protectedRouter.get('/feedback', async (_req, res) => {
+    try {
+      res.json({ ok: true, feedback: await feedback.list() });
+    } catch (err) {
+      console.error('feedback list failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to list feedback' });
+    }
+  });
+
+  protectedRouter.post('/feedback/:id/read', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ ok: false, error: 'Invalid id' });
+      return;
+    }
+    try {
+      if (!(await feedback.markRead(id))) {
+        res.status(404).json({ ok: false, error: 'Feedback not found' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('feedback markRead failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to update feedback' });
+    }
+  });
+
+  protectedRouter.delete('/feedback/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ ok: false, error: 'Invalid id' });
+      return;
+    }
+    try {
+      if (!(await feedback.remove(id))) {
+        res.status(404).json({ ok: false, error: 'Feedback not found' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('feedback delete failed:', err);
+      res.status(500).json({ ok: false, error: 'Failed to delete feedback' });
+    }
   });
 
   app.use('/api/admin', publicRouter);
