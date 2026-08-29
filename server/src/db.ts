@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { Column, DataSource, Entity, PrimaryColumn, PrimaryGeneratedColumn, Repository } from 'typeorm';
 import { config } from './config.js';
 import { hashPassword } from './password.js';
+import { DEFAULT_MAPS, setMapCatalog, type MapDefinition, type MapParams, type MapShape } from './map.js';
 
 @Entity('players')
 export class PlayerEntity {
@@ -237,6 +238,98 @@ export class UsersRepository {
   }
 }
 
+@Entity('maps')
+export class MapEntity {
+  @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
+  id!: number;
+
+  @Column({ name: 'key', type: 'text', unique: true })
+  key!: string;
+
+  @Column({ name: 'name', type: 'text' })
+  name!: string;
+
+  @Column({ name: 'shape', type: 'text' })
+  shape!: string;
+
+  @Column({ name: 'columns', type: 'int' })
+  columns!: number;
+
+  @Column({ name: 'rows', type: 'int' })
+  rows!: number;
+
+  @Column({ name: 'min_players', type: 'int' })
+  minPlayers!: number;
+
+  @Column({ name: 'max_players', type: 'int' })
+  maxPlayers!: number;
+
+  @Column({ name: 'recommended_ai', type: 'int' })
+  recommendedAi!: number;
+
+  @Column({ name: 'q_offset', type: 'int', default: 0 })
+  qOffset!: number;
+
+  @Column({ name: 'params', type: 'jsonb', default: () => "'{}'::jsonb" })
+  params!: MapParams;
+
+  @Column({ name: 'enabled', type: 'boolean', default: true })
+  enabled!: boolean;
+
+  @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
+  createdAt!: Date;
+}
+
+export class MapsRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  private repo(): Repository<MapEntity> {
+    return this.dataSource.getRepository(MapEntity);
+  }
+
+  async list(): Promise<MapEntity[]> {
+    return this.repo().find({ order: { id: 'ASC' } });
+  }
+
+  async ensureSeeded(defs: MapDefinition[]): Promise<void> {
+    for (const def of defs) {
+      await this.repo()
+        .createQueryBuilder()
+        .insert()
+        .into(MapEntity)
+        .values({
+          key: def.key,
+          name: def.name,
+          shape: def.shape,
+          columns: def.columns,
+          rows: def.rows,
+          minPlayers: def.minPlayers,
+          maxPlayers: def.maxPlayers,
+          recommendedAi: def.recommendedAi,
+          qOffset: def.qOffset,
+          params: def.params,
+        })
+        .orIgnore()
+        .execute();
+    }
+  }
+}
+
+export function mapEntityToDefinition(e: MapEntity): MapDefinition {
+  return {
+    key: e.key,
+    name: e.name,
+    shape: e.shape as MapShape,
+    columns: e.columns,
+    rows: e.rows,
+    minPlayers: e.minPlayers,
+    maxPlayers: e.maxPlayers,
+    recommendedAi: e.recommendedAi,
+    qOffset: e.qOffset,
+    params: e.params ?? {},
+  };
+}
+
 export const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.PGHOST ?? 'localhost',
@@ -244,7 +337,7 @@ export const dataSource = new DataSource({
   username: process.env.PGUSER ?? 'conquest',
   password: process.env.PGPASSWORD ?? 'conquest',
   database: process.env.PGDATABASE ?? 'conquest_db',
-  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity, FeedbackEntity, UserEntity],
+  entities: [PlayerEntity, GameDumpEntity, AdminCredentialsEntity, FeedbackEntity, UserEntity, MapEntity],
   synchronize: true,
 });
 
@@ -253,11 +346,19 @@ export const dumpsRepository = new DumpsRepository(dataSource);
 export const adminCredentialsRepository = new AdminCredentialsRepository(dataSource);
 export const feedbackRepository = new FeedbackRepository(dataSource);
 export const usersRepository = new UsersRepository(dataSource);
+export const mapsRepository = new MapsRepository(dataSource);
 
 export async function initDb(): Promise<void> {
   await dataSource.initialize();
   await playersRepository.migrate();
   await adminCredentialsRepository.ensureSeeded(config.adminUser, config.adminPassword);
+  try {
+    await mapsRepository.ensureSeeded(DEFAULT_MAPS);
+    const maps = (await mapsRepository.list()).filter((m) => m.enabled).map(mapEntityToDefinition);
+    setMapCatalog(maps);
+  } catch (err) {
+    console.error('maps seed failed:', err);
+  }
 }
 
 export async function closeDb(): Promise<void> {

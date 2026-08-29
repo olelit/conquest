@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { hashPassword, verifyPassword } from './password.js';
+import { listMaps } from './map.js';
 import type { RoomManager } from './rooms.js';
 import type { AdminCredentialsRepository, DumpsRepository, UsersRepository } from './db.js';
 
@@ -178,6 +179,10 @@ export function registerAdminRoutes(
 
   protectedRouter.get('/status', (_req, res) => {
     res.json(manager.adminOverview());
+  });
+
+  protectedRouter.get('/maps', (_req, res) => {
+    res.json({ ok: true, maps: listMaps() });
   });
 
   protectedRouter.get('/dumps', async (_req, res) => {

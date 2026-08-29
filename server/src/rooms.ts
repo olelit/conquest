@@ -1,4 +1,4 @@
-import { MAP_PRESETS, generateMap, type MapType } from './map.js';
+import { getMap, generateMap, type MapDefinition, type MapType } from './map.js';
 import * as rules from './rules.js';
 import type { GameState, HexState, PlayerState } from './rules.js';
 import { chooseAiAction, chooseDiplomacyAction, type AiAction } from './ai.js';
@@ -229,9 +229,10 @@ export class Room {
       });
     }
     const players = this.buildPlayers();
-    const hexes = this.buildHexes();
-    const preset = MAP_PRESETS[this.mapType];
-    this.state = { players, hexes, columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
+    const def = getMap(this.mapType);
+    if (!def) return { ok: false, error: 'Unknown map type' };
+    const hexes = this.buildHexes(def);
+    this.state = { players, hexes, columns: def.columns, rows: def.rows, winnerId: null, qOffset: def.qOffset };
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
     this.majorityHolderId = null;
@@ -266,8 +267,8 @@ export class Room {
     }));
   }
 
-  private buildHexes(): HexState[] {
-    return generateMap(this.mapType).map((h) => ({
+  private buildHexes(def: MapDefinition): HexState[] {
+    return generateMap(def).map((h) => ({
       q: h.q,
       r: h.r,
       terrain: h.terrain,
@@ -286,8 +287,9 @@ export class Room {
     if (this.status !== 'playing' || !this.state) return { ok: false, error: 'The game has not started yet' };
     this.slots = this.slots.filter((s) => !this.eliminationSpawned.has(s.id));
     const players = this.buildPlayers();
-    const preset = MAP_PRESETS[this.mapType];
-    this.state = { players, hexes: this.buildHexes(), columns: preset.columns, rows: preset.rows, winnerId: null, qOffset: preset.qOffset };
+    const def = getMap(this.mapType);
+    if (!def) return { ok: false, error: 'Unknown map type' };
+    this.state = { players, hexes: this.buildHexes(def), columns: def.columns, rows: def.rows, winnerId: null, qOffset: def.qOffset };
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
     this.majorityHolderId = null;
@@ -933,10 +935,10 @@ export class RoomManager {
 
   createRoom(connId: number, mapType: MapType, maxPlayers: number): { ok: true } | { ok: false; error: string } {
     if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
-    const preset = MAP_PRESETS[mapType];
-    if (!preset) return { ok: false, error: 'Unknown map type' };
-    if (!Number.isInteger(maxPlayers) || maxPlayers < preset.minPlayers || maxPlayers > preset.maxPlayers) {
-      return { ok: false, error: `Players must be between ${preset.minPlayers} and ${preset.maxPlayers}` };
+    const def = getMap(mapType);
+    if (!def) return { ok: false, error: 'Unknown map type' };
+    if (!Number.isInteger(maxPlayers) || maxPlayers < def.minPlayers || maxPlayers > def.maxPlayers) {
+      return { ok: false, error: `Players must be between ${def.minPlayers} and ${def.maxPlayers}` };
     }
     const room = new Room(this.nextRoomId++, randomCountryName(), mapType, maxPlayers, false, 1);
     const slot = room.addHuman(this.connName(connId), connId);
@@ -948,15 +950,15 @@ export class RoomManager {
 
   createSolo(connId: number, mapType: MapType, aiCount: number, difficulty: Difficulty = 'medium', training = false): { ok: true } | { ok: false; error: string } {
     if (this.connToRoom.has(connId)) return { ok: false, error: "You're already in a room" };
-    const preset = MAP_PRESETS[mapType];
-    if (!preset) return { ok: false, error: 'Unknown map type' };
-    if (!Number.isInteger(aiCount) || aiCount < 1 || aiCount > preset.maxPlayers - 1) {
-      return { ok: false, error: `Computer count must be between 1 and ${preset.maxPlayers - 1}` };
+    const def = getMap(mapType);
+    if (!def) return { ok: false, error: 'Unknown map type' };
+    if (!Number.isInteger(aiCount) || aiCount < 1 || aiCount > def.maxPlayers - 1) {
+      return { ok: false, error: `Computer count must be between 1 and ${def.maxPlayers - 1}` };
     }
     if (!['easy', 'medium', 'hard'].includes(difficulty)) {
       return { ok: false, error: 'Unknown difficulty' };
     }
-    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, preset.maxPlayers, true, aiCount, undefined, training ? 'easy' : difficulty, false, training);
+    const room = new Room(this.nextRoomId++, randomCountryName(), mapType, def.maxPlayers, true, aiCount, undefined, training ? 'easy' : difficulty, false, training);
     const slot = room.addHuman(this.connName(connId), connId);
     if (slot === null) return { ok: false, error: 'The room is full' };
     this.rooms.set(room.id, room);

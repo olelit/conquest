@@ -67,3 +67,14 @@ describe('admin HTTP: /api/admin', () => {
     expect(data.users[0]).toMatchObject({ sub: 's1', name: 'A' });
   });
 });
+
+describe('GET /api/admin/maps', () => {
+  it('возвращает список карт из каталога', async () => {
+    const res = await fetch(`${base}/api/admin/maps`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; maps: { key: string }[] };
+    expect(body.ok).toBe(true);
+    expect(body.maps.map((m) => m.key)).toContain('normal');
+    expect(body.maps.map((m) => m.key)).toContain('tutorial');
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_COLUMNS, MAP_PRESETS, MAP_ROWS, generateMap, type Terrain } from '../src/map.js';
+import { DEFAULT_MAPS, MAP_COLUMNS, MAP_ROWS, generateMap, type Terrain } from '../src/map.js';
 import {
   alliesOf,
   applyAttack,
@@ -461,7 +461,7 @@ describe('окружение', () => {
     expect(findHex(s, 0, 0)!.ownerId).toBeNull();
   });
   it('круглая карта: регион у края диска не роняет enclosure (регрессия)', () => {
-    const hexes = generateMap('round').map((h) => ({
+    const hexes = generateMap(DEFAULT_MAPS.find((m) => m.key === 'round')!).map((h) => ({
       q: h.q,
       r: h.r,
       terrain: h.terrain as Terrain,
@@ -475,12 +475,12 @@ describe('окружение', () => {
     const s: GameState = {
       players: [{ id: 1, points: 1000 }, { id: 2, points: 1000 }, { id: 3, points: 1000 }],
       hexes,
-      columns: MAP_PRESETS.round.columns,
-      rows: MAP_PRESETS.round.rows,
+      columns: DEFAULT_MAPS.find((m) => m.key === 'round')!.columns,
+      rows: DEFAULT_MAPS.find((m) => m.key === 'round')!.rows,
       winnerId: null,
     };
-    const centerQ = (MAP_PRESETS.round.columns - 1) / 2;
-    const centerR = (MAP_PRESETS.round.rows - 1) / 2;
+    const centerQ = (DEFAULT_MAPS.find((m) => m.key === 'round')!.columns - 1) / 2;
+    const centerR = (DEFAULT_MAPS.find((m) => m.key === 'round')!.rows - 1) / 2;
     const edge = s.hexes.find((h) => h.q === 9 && h.r === 0)!;
     const distance = (Math.abs(9 - centerQ) + Math.abs(0 - centerR) + Math.abs(9 - centerQ + 0 - centerR)) / 2;
     expect(distance).toBe(9);
@@ -490,16 +490,16 @@ describe('окружение', () => {
   });
   it('длинная карта: соседство у правого края (q=23) видно (регрессия границ)', () => {
     const hexes: HexState[] = [];
-    for (let r = 0; r < MAP_PRESETS.long.rows; r++) {
-      for (let q = 0; q < MAP_PRESETS.long.columns; q++) {
+    for (let r = 0; r < DEFAULT_MAPS.find((m) => m.key === 'long')!.rows; r++) {
+      for (let q = 0; q < DEFAULT_MAPS.find((m) => m.key === 'long')!.columns; q++) {
         hexes.push({ q, r, terrain: 'grass', ownerId: null, attackerId: null, defenderId: null, attackInvestment: 0, defenseInvestment: 0, battleProgress: 0 });
       }
     }
     const s: GameState = {
       players: [{ id: 1, points: 1000 }, { id: 2, points: 1000 }],
       hexes,
-      columns: MAP_PRESETS.long.columns,
-      rows: MAP_PRESETS.long.rows,
+      columns: DEFAULT_MAPS.find((m) => m.key === 'long')!.columns,
+      rows: DEFAULT_MAPS.find((m) => m.key === 'long')!.rows,
       winnerId: null,
     };
     findHex(s, 22, 4)!.ownerId = P;
