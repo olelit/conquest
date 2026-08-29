@@ -384,9 +384,20 @@ describe('экономика', () => {
   });
   it('шахта даёт больше дохода', () => {
     const s = makeState([{ q: 5, r: 5, ownerId: P }, { q: 6, r: 5, terrain: 'mine', ownerId: P }]);
-    expect(playerIncome(s, P)).toBe(7);
+    expect(playerIncome(s, P)).toBe(8);
     applyIncome(s);
-    expect(s.players[0].points).toBe(1007);
+    expect(s.players[0].points).toBe(1008);
+  });
+  it('доход зависит от типа гекса', () => {
+    const s = makeState([
+      { q: 0, r: 0, terrain: 'grass', ownerId: P },
+      { q: 1, r: 0, terrain: 'desert', ownerId: P },
+      { q: 2, r: 0, terrain: 'forest', ownerId: P },
+      { q: 3, r: 0, terrain: 'water', ownerId: P },
+      { q: 4, r: 0, terrain: 'mountain', ownerId: P },
+      { q: 5, r: 0, terrain: 'mine', ownerId: P },
+    ]);
+    expect(playerIncome(s, P)).toBe(2 + 1 + 3 + 1 + 4 + 6);
   });
 });
 

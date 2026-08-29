@@ -5,8 +5,7 @@ export const TERRAIN_COSTS: Record<Terrain, number> = config.terrainCosts;
 
 export const BASE_POINTS = config.basePoints;
 export const LIMIT_PER_HEX = config.limitPerHex;
-export const INCOME_PER_HEX = config.incomePerHex;
-export const MINE_INCOME_BONUS = config.mineIncomeBonus;
+export const INCOME_BY_TERRAIN: Record<Terrain, number> = config.terrainIncomes;
 export const CAPTURE_TICKS = config.captureTicks;
 export const DRAIN_PER_TICK = config.drainPerTick;
 export const FORTRESS_DRAIN_PER_TICK = Math.round(DRAIN_PER_TICK * 1.25);
@@ -352,7 +351,7 @@ function resetBattle(hex: HexState): void {
 export function playerIncome(state: GameState, playerId: number): number {
   return state.hexes.reduce((sum, hex) => {
     if (hex.ownerId !== playerId) return sum;
-    return sum + INCOME_PER_HEX + (hex.terrain === 'mine' ? MINE_INCOME_BONUS : 0);
+    return sum + INCOME_BY_TERRAIN[hex.terrain];
   }, 0);
 }
 
