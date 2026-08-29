@@ -675,6 +675,7 @@ describe('Room: дипломатия', () => {
     find(6, 5).ownerId = 1;
     g.players[0].capital = { q: 6, r: 5 };
     find(8, 5).ownerId = ai.id;
+    find(8, 6).ownerId = ai.id;
     g.players[1].capital = { q: 8, r: 5 };
     room.tick();
     expect(rules.relation(g, 1, ai.id)).toBe('war');

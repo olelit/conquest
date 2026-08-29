@@ -720,7 +720,7 @@ onBeforeUnmount(() => {
         </div>
         <Hud v-if="game && !room.loadTest" :game="game" :human-id="playerId" :army="army" />
         <div v-if="incomingProposals.length && !room.loadTest" class="diplomacy-panel">
-          <div v-for="p in incomingProposals" :key="p.from" class="diplomacy-panel__row">
+          <div v-for="p in incomingProposals" :key="`${p.from}-${p.kind}`" class="diplomacy-panel__row">
             <span class="diplomacy-panel__text">
               {{ t('diplomacy.proposes', { name: proposalName(p.from), kind: p.kind === 'peace' ? t('diplomacy.peace') : t('diplomacy.alliance') }) }}
             </span>
