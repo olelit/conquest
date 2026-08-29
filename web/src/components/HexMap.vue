@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { t } from '../i18n';
-import { playerPalette, isAdjacent, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_LABELS, type Hex, type Player } from '../types';
+import { playerPalette, isAdjacent, TERRAIN_COLORS, TERRAIN_COSTS, TERRAIN_INCOMES, TERRAIN_LABELS, type Hex, type Player } from '../types';
 
 const props = defineProps<{ hexes: Hex[]; players: Player[]; captureTicks: number; menuOpen?: boolean }>();
 
@@ -392,6 +392,13 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           text-anchor="middle"
           class="hex-fortress"
         >⚑</text>
+        <text
+          :x="hexCenter(hex.q, hex.r).x"
+          :y="hexCenter(hex.q, hex.r).y + 12"
+          text-anchor="middle"
+          class="hex-income"
+          :class="{ 'hex-income--rich': TERRAIN_INCOMES[hex.terrain] >= 4 }"
+        >+{{ TERRAIN_INCOMES[hex.terrain] }}</text>
         <polygon
           v-if="battleOverlay(hex)"
           :points="hexPoints(hex.q, hex.r).points"
@@ -543,6 +550,20 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
   stroke: #1a1a1a;
   stroke-width: 1.5;
   pointer-events: none;
+}
+
+.hex-income {
+  font-size: 10px;
+  font-weight: 700;
+  fill: rgba(255, 255, 255, 0.75);
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.8;
+  paint-order: stroke;
+  pointer-events: none;
+}
+
+.hex-income--rich {
+  fill: #ffd54f;
 }
 
 .battle-tooltip {

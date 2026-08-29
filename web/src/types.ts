@@ -171,6 +171,15 @@ export const TERRAIN_COSTS: Record<Terrain, number> = {
   mine: 450,
 };
 
+export const TERRAIN_INCOMES: Record<Terrain, number> = {
+  grass: 2,
+  desert: 1,
+  forest: 3,
+  water: 1,
+  mountain: 4,
+  mine: 6,
+};
+
 const NEIGHBOR_OFFSETS: [number, number][] = [
   [1, 0],
   [-1, 0],
