@@ -2,11 +2,10 @@ import { getMap, generateMap, type MapDefinition, type MapType } from './map.js'
 import * as rules from './rules.js';
 import type { GameState, HexState, PlayerState } from './rules.js';
 import { chooseAiAction, chooseDiplomacyAction, type AiAction } from './ai.js';
-import type { GoogleProfile } from './auth.js';
-import { verifyGoogleIdToken } from './auth.js';
+import { parseSessionToken, verifySessionToken, type SessionProfile } from './auth.js';
 import { config, type Difficulty } from './config.js';
 import { GameStatsRecorder, type StatsEvent, type StatsSummary } from './stats.js';
-import { dumpsRepository, usersRepository } from './db.js';
+import { dumpsRepository, usersRepository, type UsersRepository } from './db.js';
 
 export type RoomStatus = 'waiting' | 'playing';
 
@@ -889,10 +888,13 @@ export class RoomManager {
   private rooms = new Map<number, Room>();
   private connToRoom = new Map<number, number>();
   private onlineConns = new Map<number, number>();
-  private authProfiles = new Map<number, GoogleProfile>();
+  private authProfiles = new Map<number, SessionProfile>();
   private nextRoomId = 1;
 
-  constructor(private readonly finishedRoomGraceMs = 60_000) {}
+  constructor(
+    private readonly finishedRoomGraceMs = 60_000,
+    private readonly usersRepo: Pick<UsersRepository, 'findByLogin' | 'upsertBySub'> = usersRepository,
+  ) {}
 
   get roomCount(): number {
     return this.rooms.size;
@@ -908,29 +910,37 @@ export class RoomManager {
     return this.roomForConn(connId)?.slotForConn(connId) ?? null;
   }
 
-  authProfileFor(connId: number): GoogleProfile | null {
+  authProfileFor(connId: number): SessionProfile | null {
     return this.authProfiles.get(connId) ?? null;
   }
 
   async handleAuth(connId: number, token: string): Promise<{ ok: boolean; error?: string }> {
-    const clientId = config.googleClientId;
-    if (!clientId) return { ok: false, error: 'Google sign-in is not configured on the server' };
     if (!token) return { ok: false, error: 'Empty token' };
+    const parsed = parseSessionToken(token);
+    if (!parsed) return { ok: false, error: 'Invalid session token' };
+    let user;
     try {
-      const profile = await verifyGoogleIdToken(token, clientId);
-      if (!profile) return { ok: false, error: 'Failed to verify Google token' };
-      this.authProfiles.set(connId, profile);
-      this.roomForConn(connId)?.updateName(connId, profile.name);
-      try {
-        await usersRepository.upsertBySub(profile.sub, profile.email, profile.name);
-      } catch (err) {
-        console.error('user upsert failed:', err);
-      }
-      return { ok: true };
+      user = await this.usersRepo.findByLogin(parsed.u);
     } catch (err) {
-      console.error('google auth failed:', err);
-      return { ok: false, error: 'Token verification error' };
+      console.error('user lookup failed:', err);
+      return { ok: false, error: 'Login failed' };
     }
+    if (!user || !user.sessionSecret || !verifySessionToken(token, user.sessionSecret)) {
+      return { ok: false, error: 'Invalid session token' };
+    }
+    const profile: SessionProfile = { sub: user.sub, email: user.email ?? '', name: user.name ?? user.login ?? user.sub };
+    this.authProfiles.set(connId, profile);
+    this.roomForConn(connId)?.updateName(connId, profile.name);
+    try {
+      await this.usersRepo.upsertBySub(profile.sub, profile.email, profile.name);
+    } catch (err) {
+      console.error('user upsert failed:', err);
+    }
+    return { ok: true };
+  }
+
+  logout(connId: number): void {
+    this.authProfiles.delete(connId);
   }
 
   createRoom(connId: number, mapType: MapType, maxPlayers: number): { ok: true } | { ok: false; error: string } {

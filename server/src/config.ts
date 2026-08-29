@@ -40,7 +40,6 @@ export const config = {
     hard: number('CONQUEST_AI_INCOME_HARD', 1),
   } as Record<Difficulty, number>,
   tickIntervalMs: number('CONQUEST_TICK_INTERVAL_MS', 500),
-  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   adminUser: process.env.CONQUEST_ADMIN_USER ?? 'admin',
   adminPassword: process.env.CONQUEST_ADMIN_PASSWORD ?? 'admin',
   feedbackRateLimit: number('CONQUEST_FEEDBACK_RATE_LIMIT', 3),

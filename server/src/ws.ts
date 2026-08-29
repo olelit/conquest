@@ -79,6 +79,10 @@ export function attachWs(server: Server, manager: RoomManager): () => void {
             }
             return;
           }
+          case 'logout':
+            manager.logout(connId);
+            broadcast();
+            return;
           case 'menu':
           case 'leave-room':
             manager.leaveRoom(connId);

@@ -207,6 +207,15 @@ export class UserEntity {
   @Column({ name: 'name', type: 'text' })
   name!: string;
 
+  @Column({ name: 'login', type: 'text', unique: true, nullable: true })
+  login!: string | null;
+
+  @Column({ name: 'password_hash', type: 'text', nullable: true })
+  passwordHash!: string | null;
+
+  @Column({ name: 'session_secret', type: 'text', nullable: true })
+  sessionSecret!: string | null;
+
   @Column({ name: 'first_seen_at', type: 'timestamptz', default: () => 'now()' })
   firstSeenAt!: Date;
 
@@ -231,6 +240,23 @@ export class UsersRepository {
     } else {
       await this.repo().save({ sub, email, name, firstSeenAt: new Date(), lastSeenAt: new Date() });
     }
+  }
+
+  async findByLogin(login: string): Promise<UserEntity | null> {
+    return this.repo().findOneBy({ login });
+  }
+
+  async createLocal(login: string, passwordHash: string, sessionSecret: string): Promise<UserEntity> {
+    return this.repo().save({
+      sub: `local:${login}`,
+      login,
+      email: '',
+      name: login,
+      passwordHash,
+      sessionSecret,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
   }
 
   async list(): Promise<UserEntity[]> {

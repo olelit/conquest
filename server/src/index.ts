@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { RoomManager } from './rooms.js';
 import { attachWs } from './ws.js';
 import { registerAdminRoutes } from './admin.js';
+import { registerAuthRoutes } from './auth-routes.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const MAX_DB_RETRIES = 15;
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
 
   const manager = new RoomManager();
   registerAdminRoutes(app, manager, dumpsRepository, adminCredentialsRepository, usersRepository);
+  registerAuthRoutes(app, usersRepository);
 
   if (process.env.NODE_ENV === 'production') {
     const cfg = await import('./config.js');
