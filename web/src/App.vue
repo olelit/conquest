@@ -99,6 +99,7 @@ const createOptions = computed(() => {
   for (let i = info.minPlayers; i <= info.maxPlayers; i++) opts.push(i);
   return opts;
 });
+const mapOptions = computed(() => Object.entries(MAP_INFO).filter(([, info]) => !info.hidden) as [MapType, (typeof MAP_INFO)[MapType]][]);
 
 watch(aiMapType, () => {
   if (aiCount.value > aiMax.value) aiCount.value = aiMax.value;
@@ -419,7 +420,7 @@ function startSolo(): void {
 
 function startTutorial(): void {
   sessionStorage.setItem('conquest.training', '1');
-  client.sendStartSolo('normal', 1, 'easy', true);
+  client.sendStartSolo('tutorial', 1, 'easy', true);
 }
 
 function createRoom(): void {
@@ -516,7 +517,7 @@ onBeforeUnmount(() => {
         <h1 class="menu__title">Conquest</h1>
         <p class="menu__subtitle">{{ t('menu.aiSubtitle') }}</p>
         <select v-model="aiMapType" class="menu__select">
-          <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
+          <option v-for="[type, info] in mapOptions" :key="type" :value="type">
             {{ t(info.labelKey) }} — {{ t(info.descriptionKey) }}
           </option>
         </select>
@@ -554,7 +555,7 @@ onBeforeUnmount(() => {
         <div class="lobby__create">
           <h3 class="lobby__create-title">{{ t('menu.createRoom') }}</h3>
           <select v-model="createMapType" class="menu__select">
-            <option v-for="(info, type) in MAP_INFO" :key="type" :value="type">
+            <option v-for="[type, info] in mapOptions" :key="type" :value="type">
               {{ t(info.labelKey) }} — {{ t(info.descriptionKey) }}
             </option>
           </select>

@@ -1,6 +1,6 @@
 export type Terrain = 'grass' | 'forest' | 'mountain' | 'water' | 'desert' | 'mine';
 
-export type MapType = 'normal' | 'long' | 'island' | 'round';
+export type MapType = 'normal' | 'long' | 'island' | 'round' | 'continents' | 'peninsula' | 'ridge' | 'tutorial';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -10,6 +10,7 @@ export interface MapInfo {
   minPlayers: number;
   maxPlayers: number;
   recommendedAi: number;
+  hidden?: boolean;
 }
 
 export const MAP_INFO: Record<MapType, MapInfo> = {
@@ -17,6 +18,10 @@ export const MAP_INFO: Record<MapType, MapInfo> = {
   long: { labelKey: 'map.long', descriptionKey: 'map.longDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
   island: { labelKey: 'map.island', descriptionKey: 'map.islandDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
   round: { labelKey: 'map.round', descriptionKey: 'map.roundDesc', minPlayers: 2, maxPlayers: 6, recommendedAi: 1 },
+  continents: { labelKey: 'map.continents', descriptionKey: 'map.continentsDesc', minPlayers: 2, maxPlayers: 5, recommendedAi: 2 },
+  peninsula: { labelKey: 'map.peninsula', descriptionKey: 'map.peninsulaDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  ridge: { labelKey: 'map.ridge', descriptionKey: 'map.ridgeDesc', minPlayers: 2, maxPlayers: 4, recommendedAi: 1 },
+  tutorial: { labelKey: 'map.tutorial', descriptionKey: 'map.tutorialDesc', minPlayers: 2, maxPlayers: 2, recommendedAi: 1, hidden: true },
 };
 
 const paletteCache = new Map<string, Map<number, string>>();
