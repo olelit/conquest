@@ -11,25 +11,12 @@ import { t, lang, setLang } from './i18n';
 import { STAGE_ORDER, continueTutorial, initTraining, observeTraining, stopTraining, taskDone, trainingStage, type TrainingStage } from './training';
 import { isAdjacent, MAP_INFO, TERRAIN_COSTS, type AuthProfile, type Difficulty, type Hex, type MapType, type RoomLobbyInfo, type RoomView } from './types';
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: { client_id: string; callback: (r: { credential: string }) => void }) => void;
-          renderButton: (el: HTMLElement, options: Record<string, unknown>) => void;
-        };
-      };
-    };
-  }
-}
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
 const connected = ref(false);
 const error = ref<string | null>(null);
 let errorTimer: number | undefined;
 const auth = ref<AuthProfile | null>(null);
+const loginForm = ref({ login: '', password: '' });
+const authError = ref<string | null>(null);
 const rooms = ref<RoomLobbyInfo[]>([]);
 const room = ref<RoomView | null>(null);
 const playerId = ref<number | null>(null);
@@ -54,7 +41,6 @@ const loadTestPlayers = ref(10);
 const victoryDismissed = ref(false);
 const isAdmin = ref(false);
 const dumpMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null);
-const googleMsg = ref<string | null>(null);
 
 const game = computed(() => room.value?.game ?? null);
 const myPlayer = computed(() =>
@@ -445,38 +431,53 @@ function onToMenu(): void {
   client.sendToMenu();
 }
 
-function onGoogleNotConfigured(): void {
-  googleMsg.value = t('menu.googleNotConfigured');
-  window.setTimeout(() => {
-    googleMsg.value = null;
-  }, 4000);
+async function submitAuth(register: boolean): Promise<void> {
+  const loginName = loginForm.value.login.trim();
+  const password = loginForm.value.password;
+  if (loginName === '' || password === '') {
+    authError.value = t('auth.errorValidation');
+    return;
+  }
+  authError.value = null;
+  try {
+    const res = await fetch(register ? '/api/auth/register' : '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: loginName, password }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; token?: string; error?: string };
+    if (res.ok && data.ok && typeof data.token === 'string') {
+      localStorage.setItem('conquest.authToken', data.token);
+      client.setAuthToken(data.token);
+      client.sendAuth(data.token);
+      loginForm.value.password = '';
+      return;
+    }
+    if (res.status === 401) authError.value = t('auth.errorInvalid');
+    else if (res.status === 409) authError.value = t('auth.errorTaken');
+    else if (res.status === 400) authError.value = t('auth.errorValidation');
+    else authError.value = t('auth.errorNetwork');
+  } catch {
+    authError.value = t('auth.errorNetwork');
+  }
 }
 
-function initGoogleButton(): void {
-  if (!GOOGLE_CLIENT_ID || !window.google) return;
-  const el = document.getElementById('google-btn');
-  if (!el) return;
-  window.google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: (response) => client.sendAuth(response.credential),
-  });
-  window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill' });
+function logout(): void {
+  localStorage.removeItem('conquest.authToken');
+  client.setAuthToken(null);
+  client.sendLogout();
+  auth.value = null;
 }
 
 onMounted(() => {
+  const savedToken = localStorage.getItem('conquest.authToken');
+  if (savedToken) client.setAuthToken(savedToken);
   client.connect();
   window.addEventListener('mousedown', onMenuMouseDown);
   window.addEventListener('click', onMenuClick);
   window.addEventListener('keydown', onHotkey);
   window.addEventListener('blur', closeContextMenu);
   window.addEventListener('contextmenu', onMenuContextMenu);
-  if (GOOGLE_CLIENT_ID) {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.onload = () => initGoogleButton();
-    document.head.appendChild(script);
-  }
 });
 
 onBeforeUnmount(() => {
@@ -499,11 +500,27 @@ onBeforeUnmount(() => {
         <button class="menu__btn" :disabled="!connected" @click="startTutorial">{{ t('menu.tutorial') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLobby">{{ t('menu.playVsHumans') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">{{ t('menu.loadTest') }}</button>
-        <div class="menu__google">
-          <div v-if="auth" class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</div>
-          <div v-else-if="GOOGLE_CLIENT_ID" id="google-btn"></div>
-          <button v-else class="menu__btn menu__btn--ghost" @click="onGoogleNotConfigured">{{ t('menu.signInGoogle') }}</button>
-          <div v-if="googleMsg" class="menu__google-err">{{ googleMsg }}</div>
+        <div class="menu__auth">
+          <div v-if="auth" class="menu__auth-row">
+            <span class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</span>
+            <button class="menu__btn menu__btn--ghost menu__btn--small" @click="logout">{{ t('menu.logout') }}</button>
+          </div>
+          <div v-else class="menu__auth-form">
+            <input v-model="loginForm.login" class="menu__input" :placeholder="t('menu.login')" autocomplete="username">
+            <input
+              v-model="loginForm.password"
+              type="password"
+              class="menu__input"
+              :placeholder="t('menu.password')"
+              autocomplete="current-password"
+              @keydown.enter="submitAuth(false)"
+            >
+            <div class="menu__auth-btns">
+              <button class="menu__btn menu__btn--small" @click="submitAuth(false)">{{ t('menu.signIn') }}</button>
+              <button class="menu__btn menu__btn--ghost menu__btn--small" @click="submitAuth(true)">{{ t('menu.register') }}</button>
+            </div>
+            <div v-if="authError" class="menu__google-err">{{ authError }}</div>
+          </div>
         </div>
         <div class="menu__lang">
           <button class="menu__lang-btn" :class="{ 'is-active': lang === 'en' }" @click="setLang('en')">EN</button>
@@ -906,14 +923,43 @@ onBeforeUnmount(() => {
   background: #43a047;
 }
 
-.menu__google {
-  margin-top: 6px;
-  min-height: 40px;
-}
-
 .menu__auth {
   color: #ce93d8;
   font-weight: 600;
+}
+
+.menu__auth-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu__auth-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu__auth-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.menu__btn--small {
+  min-width: 120px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.menu__input {
+  min-width: 260px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #555;
+  background: #2a2a31;
+  color: #fff;
+  font-size: 15px;
 }
 
 .menu__google-err {

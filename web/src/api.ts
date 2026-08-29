@@ -16,6 +16,7 @@ export class GameClient {
   private ws: WebSocket | null = null;
   private attempt = 0;
   private closed = false;
+  private authToken: string | null = null;
 
   connect(): void {
     this.closed = false;
@@ -25,6 +26,14 @@ export class GameClient {
   close(): void {
     this.closed = true;
     this.ws?.close();
+  }
+
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+  }
+
+  sendLogout(): void {
+    this.send({ type: 'logout' });
   }
 
   sendCapture(q: number, r: number, army = 0): void {
@@ -117,6 +126,9 @@ export class GameClient {
     ws.onopen = () => {
       this.attempt = 0;
       this.onStatus(true);
+      if (this.authToken) {
+        this.send({ type: 'auth', token: this.authToken });
+      }
     };
 
     ws.onmessage = (event) => {

@@ -126,6 +126,7 @@ export type ClientMessage =
   | { type: 'join-room'; roomId: number }
   | { type: 'start-room' }
   | { type: 'auth'; token: string }
+  | { type: 'logout' }
   | { type: 'declare-war'; q: number; r: number }
   | { type: 'propose'; q: number; r: number; kind: 'peace' | 'alliance' }
   | { type: 'respond-proposal'; q: number; r: number; accept: boolean }
