@@ -390,15 +390,9 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
           :x="hexCenter(hex.q, hex.r).x"
           :y="hexCenter(hex.q, hex.r).y"
           text-anchor="middle"
+          :fill="hex.ownerId !== null ? colorOf(hex.ownerId) : '#ffb74d'"
           class="hex-fortress"
         >⚑</text>
-        <text
-          :x="hexCenter(hex.q, hex.r).x"
-          :y="hexCenter(hex.q, hex.r).y + 12"
-          text-anchor="middle"
-          class="hex-income"
-          :class="{ 'hex-income--rich': TERRAIN_INCOMES[hex.terrain] >= 4 }"
-        >+{{ TERRAIN_INCOMES[hex.terrain] }}</text>
         <polygon
           v-if="battleOverlay(hex)"
           :points="hexPoints(hex.q, hex.r).points"
@@ -432,6 +426,10 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
       <div class="battle-tooltip__row">
         <span>{{ t(TERRAIN_LABELS[hovered.terrain]) }}</span>
         <span class="battle-tooltip__pool">{{ TERRAIN_COSTS[hovered.terrain] }}</span>
+      </div>
+      <div class="battle-tooltip__row">
+        <span>{{ t('hex.income') }}</span>
+        <span class="battle-tooltip__pool battle-tooltip__income">+{{ TERRAIN_INCOMES[hovered.terrain] }}</span>
       </div>
       <div class="battle-tooltip__row">
         <span>{{ t('hex.owner', { name: playerName(hovered.ownerId) }) }}{{ capitalPlayer(hovered) ? t('hex.capital') : '' }}</span>
@@ -546,24 +544,9 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 
 .hex-fortress {
   font-size: 22px;
-  fill: #ffb74d;
   stroke: #1a1a1a;
   stroke-width: 1.5;
   pointer-events: none;
-}
-
-.hex-income {
-  font-size: 10px;
-  font-weight: 700;
-  fill: rgba(255, 255, 255, 0.75);
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 0.8;
-  paint-order: stroke;
-  pointer-events: none;
-}
-
-.hex-income--rich {
-  fill: #ffd54f;
 }
 
 .battle-tooltip {
@@ -590,6 +573,10 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 .battle-tooltip__pool {
   font-family: monospace;
   font-weight: 700;
+}
+
+.battle-tooltip__income {
+  color: #7cb342;
 }
 
 .battle-tooltip__capture {
@@ -621,15 +608,13 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 
 @keyframes owner-flash {
   0% {
-    fill: #ffffff;
-    fill-opacity: 0.9;
+    opacity: 0.95;
   }
   60% {
-    fill: #ffffff;
-    fill-opacity: 0.8;
+    opacity: 0.8;
   }
   100% {
-    fill-opacity: 0.5;
+    opacity: 0.7;
   }
 }
 </style>
