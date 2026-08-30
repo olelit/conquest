@@ -324,4 +324,13 @@ describe('chooseDiplomacyAction', () => {
     ], 1000, 1000, 1000);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 0, points: 1000 } })).toBeNull();
   });
+  it('не предлагает союз без контакта', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 10, r: 10, ownerId: P },
+      { q: 12, r: 10, ownerId: 3 },
+      { q: 12, r: 11, ownerId: 3 },
+    ]);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
+  });
 });

@@ -240,6 +240,7 @@ export function chooseDiplomacyAction(
     if (rel === 'war' || rel === 'alliance') continue;
     const targetStr = target.isAi ? strength(target.id) : scoutStr;
     if (targetStr.hexes < 1) continue;
+    if (!isInContact(state, aiId, target.id)) continue;
     const aiStr = strength(aiId);
     const targetAtWar = state.players.some(
       (p) => p.id !== target.id && p.id !== aiId && relation(state, target.id, p.id) === 'war',
@@ -263,6 +264,15 @@ function inContactZone(state: GameState, hex: HexState, aiId: number): boolean {
     const n = findHex(state, hex.q + dq, hex.r + dr);
     if (n === undefined || n.ownerId !== null) continue;
     if (hasAdjacentOwner(state, n.q, n.r, aiId)) return true;
+  }
+  return false;
+}
+
+// Есть ли у цели хотя бы один гекс в контактной зоне ИИ.
+function isInContact(state: GameState, aiId: number, targetId: number): boolean {
+  for (const hex of state.hexes) {
+    if (hex.ownerId !== targetId) continue;
+    if (inContactZone(state, hex, aiId)) return true;
   }
   return false;
 }
