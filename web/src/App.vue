@@ -358,6 +358,8 @@ function onHotkey(e: KeyboardEvent): void {
   if (e.code === 'Escape') {
     closeContextMenu();
     burgerOpen.value = false;
+    closeAuth();
+    closeFeedback();
     return;
   }
   if (!room.value || !game.value) return;
@@ -488,7 +490,28 @@ function onToMenu(): void {
   client.sendToMenu();
 }
 
-async function submitAuth(register: boolean): Promise<void> {
+const authOpen = ref(false);
+const authTab = ref<'login' | 'register'>('login');
+
+function openAuth(): void {
+  loginForm.value = { login: '', password: '' };
+  authError.value = null;
+  authTab.value = 'login';
+  authOpen.value = true;
+}
+
+function closeAuth(): void {
+  authOpen.value = false;
+  authError.value = null;
+}
+
+function switchAuthTab(tab: 'login' | 'register'): void {
+  authTab.value = tab;
+  authError.value = null;
+}
+
+async function submitAuth(): Promise<void> {
+  const register = authTab.value === 'register';
   const loginName = loginForm.value.login.trim();
   const password = loginForm.value.password;
   if (loginName === '' || password === '') {
@@ -508,6 +531,7 @@ async function submitAuth(register: boolean): Promise<void> {
       client.setAuthToken(data.token);
       client.sendAuth(data.token);
       loginForm.value.password = '';
+      closeAuth();
       return;
     }
     if (res.status === 401) authError.value = t('auth.errorInvalid');
@@ -554,22 +578,7 @@ onBeforeUnmount(() => {
         <span class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</span>
         <button class="menu__btn menu__btn--ghost menu__btn--small" @click="logout">{{ t('menu.logout') }}</button>
       </div>
-      <div v-else class="auth-bar__form">
-        <input v-model="loginForm.login" class="menu__input" :placeholder="t('menu.login')" autocomplete="username">
-        <input
-          v-model="loginForm.password"
-          type="password"
-          class="menu__input"
-          :placeholder="t('menu.password')"
-          autocomplete="current-password"
-          @keydown.enter="submitAuth(false)"
-        >
-        <div class="auth-bar__btns">
-          <button class="menu__btn menu__btn--small" @click="submitAuth(false)">{{ t('menu.signIn') }}</button>
-          <button class="menu__btn menu__btn--ghost menu__btn--small" @click="submitAuth(true)">{{ t('menu.register') }}</button>
-        </div>
-        <div v-if="authError" class="menu__google-err">{{ authError }}</div>
-      </div>
+      <button v-else class="menu__btn menu__btn--ghost menu__btn--small" @click="openAuth">{{ t('menu.account') }}</button>
     </div>
     <template v-if="screen === 'menu' && !room">
       <div class="menu">
@@ -770,6 +779,40 @@ onBeforeUnmount(() => {
       <div class="burger-menu">
         <button v-if="room?.aiMode" class="burger-menu__item" @click="onRestart">{{ t('burger.restart') }}</button>
         <button class="burger-menu__item" @click="onToMenu">{{ t('burger.toMenu') }}</button>
+      </div>
+    </div>
+
+    <div v-if="authOpen" class="feedback-overlay" @click.self="closeAuth">
+      <div class="feedback-modal">
+        <h2 class="feedback-modal__title">{{ t('menu.account') }}</h2>
+        <div class="auth-modal__tabs">
+          <button
+            class="auth-modal__tab"
+            :class="{ 'is-active': authTab === 'login' }"
+            @click="switchAuthTab('login')"
+          >{{ t('menu.signIn') }}</button>
+          <button
+            class="auth-modal__tab"
+            :class="{ 'is-active': authTab === 'register' }"
+            @click="switchAuthTab('register')"
+          >{{ t('menu.register') }}</button>
+        </div>
+        <div class="auth-modal__fields">
+          <input v-model="loginForm.login" class="feedback-modal__input" :placeholder="t('menu.login')" autocomplete="username" @keydown.enter="submitAuth">
+          <input
+            v-model="loginForm.password"
+            type="password"
+            class="feedback-modal__input"
+            :placeholder="t('menu.password')"
+            autocomplete="current-password"
+            @keydown.enter="submitAuth"
+          >
+        </div>
+        <p v-if="authError" class="feedback-modal__msg feedback-modal__msg--err">{{ authError }}</p>
+        <div class="feedback-modal__row">
+          <button class="feedback-modal__btn" @click="submitAuth">{{ authTab === 'login' ? t('menu.signIn') : t('menu.register') }}</button>
+          <button class="feedback-modal__btn feedback-modal__btn--ghost" @click="closeAuth">{{ t('feedback.cancel') }}</button>
+        </div>
       </div>
     </div>
 
@@ -1081,56 +1124,10 @@ onBeforeUnmount(() => {
   padding: 8px 14px;
 }
 
-.auth-bar__form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid #555;
-  border-radius: 10px;
-  padding: 8px 10px;
-}
-
-.auth-bar__btns {
-  display: flex;
-  gap: 8px;
-}
-
-.auth-bar .menu__input {
-  min-width: 0;
-  width: 150px;
-  padding: 8px 10px;
-  font-size: 14px;
-}
-
-.auth-bar__form .menu__google-err {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 10px;
-  max-width: 340px;
-  text-align: right;
-}
-
 .menu__btn--small {
   min-width: 120px;
   padding: 8px 16px;
   font-size: 14px;
-}
-
-.menu__input {
-  min-width: 260px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid #555;
-  background: #2a2a31;
-  color: #fff;
-  font-size: 15px;
-}
-
-.menu__google-err {
-  color: #ff6b6b;
-  font-size: 13px;
-  margin-top: 6px;
 }
 
 .lobby {
@@ -1442,5 +1439,34 @@ onBeforeUnmount(() => {
 .feedback-modal__btn--ghost {
   background: #2a2a31;
   border: 1px solid #555;
+}
+
+.auth-modal__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-modal__tab {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a31;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-modal__tab.is-active {
+  background: #2196f3;
+  border-color: #2196f3;
+}
+
+.auth-modal__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

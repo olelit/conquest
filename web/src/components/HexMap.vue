@@ -376,6 +376,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
         <polygon
           v-if="isProtected(hex)"
           :points="shieldPoints(hex.q, hex.r).points"
+          :fill="hex.ownerId !== null ? colorOf(hex.ownerId) : '#ffffff'"
           class="hex-shield"
         />
         <text
@@ -536,7 +537,7 @@ function battleOverlay(hex: Hex): { fill: string; y: number; height: number } | 
 }
 
 .hex-shield {
-  fill: rgba(255, 255, 255, 0.92);
+  fill-opacity: 0.85;
   stroke: #1a1a1a;
   stroke-width: 1.4;
   pointer-events: none;
