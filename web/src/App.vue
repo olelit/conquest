@@ -549,6 +549,28 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="app">
+    <div v-if="!room" class="auth-bar">
+      <div v-if="auth" class="auth-bar__row">
+        <span class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</span>
+        <button class="menu__btn menu__btn--ghost menu__btn--small" @click="logout">{{ t('menu.logout') }}</button>
+      </div>
+      <div v-else class="auth-bar__form">
+        <input v-model="loginForm.login" class="menu__input" :placeholder="t('menu.login')" autocomplete="username">
+        <input
+          v-model="loginForm.password"
+          type="password"
+          class="menu__input"
+          :placeholder="t('menu.password')"
+          autocomplete="current-password"
+          @keydown.enter="submitAuth(false)"
+        >
+        <div class="auth-bar__btns">
+          <button class="menu__btn menu__btn--small" @click="submitAuth(false)">{{ t('menu.signIn') }}</button>
+          <button class="menu__btn menu__btn--ghost menu__btn--small" @click="submitAuth(true)">{{ t('menu.register') }}</button>
+        </div>
+        <div v-if="authError" class="menu__google-err">{{ authError }}</div>
+      </div>
+    </div>
     <template v-if="screen === 'menu' && !room">
       <div class="menu">
         <h1 class="menu__title">Conquest</h1>
@@ -558,28 +580,6 @@ onBeforeUnmount(() => {
         <button class="menu__btn" :disabled="!connected" @click="goToLobby">{{ t('menu.playVsHumans') }}</button>
         <button class="menu__btn" :disabled="!connected" @click="goToLoadTest">{{ t('menu.loadTest') }}</button>
         <button class="menu__btn" @click="openFeedback">{{ t('menu.feedback') }}</button>
-        <div class="menu__auth">
-          <div v-if="auth" class="menu__auth-row">
-            <span class="menu__auth">{{ t('menu.loggedInAs', { name: auth.name }) }}</span>
-            <button class="menu__btn menu__btn--ghost menu__btn--small" @click="logout">{{ t('menu.logout') }}</button>
-          </div>
-          <div v-else class="menu__auth-form">
-            <input v-model="loginForm.login" class="menu__input" :placeholder="t('menu.login')" autocomplete="username">
-            <input
-              v-model="loginForm.password"
-              type="password"
-              class="menu__input"
-              :placeholder="t('menu.password')"
-              autocomplete="current-password"
-              @keydown.enter="submitAuth(false)"
-            >
-            <div class="menu__auth-btns">
-              <button class="menu__btn menu__btn--small" @click="submitAuth(false)">{{ t('menu.signIn') }}</button>
-              <button class="menu__btn menu__btn--ghost menu__btn--small" @click="submitAuth(true)">{{ t('menu.register') }}</button>
-            </div>
-            <div v-if="authError" class="menu__google-err">{{ authError }}</div>
-          </div>
-        </div>
         <div class="menu__lang">
           <button class="menu__lang-btn" :class="{ 'is-active': lang === 'en' }" @click="setLang('en')">EN</button>
           <button class="menu__lang-btn" :class="{ 'is-active': lang === 'ru' }" @click="setLang('ru')">RU</button>
@@ -1064,22 +1064,51 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.menu__auth-row {
+.auth-bar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+}
+
+.auth-bar__row {
   display: flex;
   align-items: center;
   gap: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #555;
+  border-radius: 10px;
+  padding: 8px 14px;
 }
 
-.menu__auth-form {
+.auth-bar__form {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #555;
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
-.menu__auth-btns {
+.auth-bar__btns {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+}
+
+.auth-bar .menu__input {
+  min-width: 0;
+  width: 150px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.auth-bar__form .menu__google-err {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 10px;
+  max-width: 340px;
+  text-align: right;
 }
 
 .menu__btn--small {
