@@ -244,6 +244,24 @@ describe('chooseDiplomacyAction', () => {
     ], 100, 100);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 100 } })).toBeNull();
   });
+  it('объявляет войну при равенстве сил, даже если очков меньше', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: P },
+    ], 500, 2000);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 2000 } })).toEqual({ type: 'declare-war', targetId: P });
+  });
+  it('не предлагает мир другому ИИ — предустановка победить всех', () => {
+    const s = makeDiploState([
+      { q: 7, r: 5, ownerId: AI },
+      { q: 6, r: 5, ownerId: 3 },
+      { q: 5, r: 5, ownerId: 3 },
+      { q: 5, r: 6, ownerId: 3 },
+    ]);
+    s.players.find((p) => p.id === 3)!.isAi = true;
+    declareWar(s, AI, 3);
+    expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 0, points: 1000 } })).toBeNull();
+  });
   it('не объявляет войну, если цель сильнее — вместо этого предлагает союз', () => {
     const s = makeDiploState([
       { q: 7, r: 5, ownerId: AI },
@@ -281,8 +299,7 @@ describe('chooseDiplomacyAction', () => {
     const s = makeDiploState([
       { q: 7, r: 5, ownerId: AI },
       { q: 6, r: 5, ownerId: P },
-      { q: 10, r: 10, ownerId: 3 },
-    ], 500, 1000, 1000);
+    ], 100, 1000, 1000);
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
   });
   it('объявляет войну через зазор в 1 нейтральный гекс', () => {

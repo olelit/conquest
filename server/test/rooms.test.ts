@@ -704,7 +704,8 @@ describe('Room: дипломатия', () => {
     room.tick(); // в кулдауне — войны нет
     expect(rules.relation(g, 1, ai.id)).toBe('peace');
     room['peaceCooldowns'].set(`${ai.id}-1`, Date.now() - 1000);
-    room.tick(); // кулдаун истёк — снова война
+    room['aiLastActionAt'].set(ai.id, Date.now() - 2000);
+    room.tick(); // кулдаун истёк и дипломатия разрешена — снова война
     expect(rules.relation(g, 1, ai.id)).toBe('war');
   });
   it('разведка: кэш обновляется не чаще 30 секунд', () => {

@@ -215,15 +215,15 @@ export function chooseDiplomacyAction(
     if (!border) continue;
     const targetStr = target.isAi ? strength(target.id) : scoutStr;
     const aiStr = strength(aiId);
-    const stronger =
-      aiStr.hexes > targetStr.hexes || (aiStr.hexes === targetStr.hexes && aiStr.points >= targetStr.points);
-    if (stronger && ai.points >= terrainCost(border.terrain)) {
+    if (aiStr.hexes < targetStr.hexes) continue;
+    if (ai.points >= terrainCost(border.terrain)) {
       return { type: 'declare-war', targetId: target.id };
     }
   }
 
   for (const target of state.players) {
     if (target.id === aiId || target.eliminated) continue;
+    if (target.isAi) continue;
     if (relation(state, aiId, target.id) !== 'war') continue;
     if (aiHexes < hexCount(state, target.id)) {
       return { type: 'propose-peace', targetId: target.id };

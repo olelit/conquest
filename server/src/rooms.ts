@@ -232,6 +232,7 @@ export class Room {
     if (!def) return { ok: false, error: 'Unknown map type' };
     const hexes = this.buildHexes(def);
     this.state = { players, hexes, columns: def.columns, rows: def.rows, winnerId: null, qOffset: def.qOffset };
+    this.state.hexIndex = new Map(hexes.map((h) => [`${h.q},${h.r}`, h]));
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
     this.majorityHolderId = null;
@@ -289,6 +290,7 @@ export class Room {
     const def = getMap(this.mapType);
     if (!def) return { ok: false, error: 'Unknown map type' };
     this.state = { players, hexes: this.buildHexes(def), columns: def.columns, rows: def.rows, winnerId: null, qOffset: def.qOffset };
+    this.state.hexIndex = new Map(this.state.hexes.map((h) => [`${h.q},${h.r}`, h]));
     this.state.diplomacy = new Map();
     this.pendingProposals = [];
     this.majorityHolderId = null;
@@ -416,12 +418,12 @@ export class Room {
     }
     for (const player of state.players) {
       if (!player.isAi || player.eliminated) continue;
-      this.handleAiDiplomacy(state, player.id);
       const last = this.aiLastActionAt.get(player.id) ?? 0;
       if (now - last < config.aiActionIntervalMs) continue;
+      this.aiLastActionAt.set(player.id, now);
+      this.handleAiDiplomacy(state, player.id);
       const action = chooseAiAction(state, player.id);
       if (action) {
-        this.aiLastActionAt.set(player.id, now);
         this.applyAiAction(player.id, action);
       }
     }

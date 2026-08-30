@@ -41,6 +41,7 @@ export interface GameState {
   winnerId: number | null;
   diplomacy?: DiplomacyMap;
   qOffset?: number;
+  hexIndex?: Map<string, HexState>;
 }
 
 const NEIGHBOR_OFFSETS: [number, number][] = [
@@ -53,7 +54,7 @@ const NEIGHBOR_OFFSETS: [number, number][] = [
 ];
 
 export function findHex(state: GameState, q: number, r: number): HexState | undefined {
-  return state.hexes.find((h) => h.q === q && h.r === r);
+  return state.hexIndex?.get(`${q},${r}`) ?? state.hexes.find((h) => h.q === q && h.r === r);
 }
 
 export function hexCount(state: GameState, playerId: number): number {
