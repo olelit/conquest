@@ -28,6 +28,11 @@ export interface DiplomacyContext {
   scout: { hexCount: number; points: number } | null;
 }
 
+export interface AiOptions {
+  training?: boolean;
+  maxHexes?: number;
+}
+
 const NEIGHBOR_OFFSETS: [number, number][] = [
   [1, 0],
   [-1, 0],
@@ -37,14 +42,14 @@ const NEIGHBOR_OFFSETS: [number, number][] = [
   [-1, 1],
 ];
 
-export function chooseAiAction(state: GameState, aiId: number): AiAction | null {
+export function chooseAiAction(state: GameState, aiId: number, opts: AiOptions = {}): AiAction | null {
   const ai = state.players.find((p) => p.id === aiId);
   if (!ai) return null;
   if (ai.eliminated) return null;
 
   const aiHexCount = hexCount(state, aiId);
   if (aiHexCount === 0) {
-    return chooseFirstCapture(state, aiId);
+    return chooseFirstCapture(state, aiId, opts.training === true);
   }
 
   for (const hex of state.hexes) {
@@ -108,11 +113,16 @@ export function chooseAiAction(state: GameState, aiId: number): AiAction | null 
     if (ai.points >= cost) return { type: 'attack', q: hex.q, r: hex.r, points: cost };
   }
 
-  const affordableNeutral = state.hexes
-    .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
-    .filter((hex) => terrainCost(hex.terrain) <= ai.points)
-    .filter((hex) => !hasPeacefulNeighbor(state, hex.q, hex.r, aiId))
-    .sort((a, b) => captureScore(state, a, aiId) - captureScore(state, b, aiId));
+  const capturesAllowed =
+    !opts.training || aiHexCount < (opts.maxHexes ?? Number.POSITIVE_INFINITY);
+
+  const affordableNeutral = capturesAllowed
+    ? state.hexes
+        .filter((hex) => hex.ownerId === null && hex.attackerId === null && hasAdjacentOwner(state, hex.q, hex.r, aiId))
+        .filter((hex) => terrainCost(hex.terrain) <= ai.points)
+        .filter((hex) => !hasPeacefulNeighbor(state, hex.q, hex.r, aiId))
+        .sort((a, b) => captureScore(state, a, aiId) - captureScore(state, b, aiId))
+    : [];
   if (affordableNeutral.length > 0) {
     const hex = affordableNeutral[0];
     return { type: 'capture', q: hex.q, r: hex.r };
@@ -160,7 +170,27 @@ function hasAnyAdjacentOwner(state: GameState, q: number, r: number): boolean {
   return false;
 }
 
-function chooseFirstCapture(state: GameState, aiId: number): AiAction | null {
+function chooseFirstCapture(state: GameState, aiId: number, training = false): AiAction | null {
+  if (training) {
+    const humanHexes = state.hexes.filter((hex) => {
+      if (hex.ownerId === null) return false;
+      const owner = state.players.find((p) => p.id === hex.ownerId);
+      return owner !== undefined && !owner.isAi && !owner.eliminated;
+    });
+    if (humanHexes.length === 0) return null;
+    const candidates = state.hexes.filter(
+      (hex) =>
+        hex.ownerId === null &&
+        hex.attackerId === null &&
+        hex.terrain !== 'water' &&
+        humanHexes.some((h) => isAdjacent(h, hex)),
+    );
+    if (candidates.length === 0) return null;
+    const best = candidates.sort(
+      (a, b) => terrainCost(a.terrain) - terrainCost(b.terrain) || a.q - b.q || a.r - b.r,
+    )[0];
+    return { type: 'capture', q: best.q, r: best.r };
+  }
   const free = state.hexes.filter(
     (hex) => hex.ownerId === null && hex.attackerId === null && hex.terrain !== 'water',
   );

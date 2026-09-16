@@ -334,3 +334,36 @@ describe('chooseDiplomacyAction', () => {
     expect(chooseDiplomacyAction(s, AI, { scout: { hexCount: 1, points: 1000 } })).toBeNull();
   });
 });
+
+describe('chooseAiAction: обучение', () => {
+  const training = { training: true, maxHexes: 5 };
+  it('ждёт, пока у игрока не появится гекс', () => {
+    const s = makeState([]);
+    s.players[0].isAi = true;
+    expect(chooseAiAction(s, AI, training)).toBeNull();
+  });
+  it('первый гекс — свободный неводный сосед игрока, самый дешёвый', () => {
+    const s = makeState([{ q: 4, r: 4, ownerId: P }]);
+    s.players[0].isAi = true;
+    for (const h of s.hexes) h.terrain = 'water';
+    const find = (q: number, r: number) => s.hexes.find((h) => h.q === q && h.r === r)!;
+    find(5, 4).terrain = 'forest';
+    find(4, 5).terrain = 'grass';
+    expect(chooseAiAction(s, AI, training)).toEqual({ type: 'capture', q: 4, r: 5 });
+  });
+  it('при лимите гексов не захватывает нейтралов', () => {
+    const hexes: Partial<HexState>[] = [];
+    for (let i = 0; i < 5; i++) hexes.push({ q: 10 + i, r: 8, ownerId: AI });
+    const s = makeState(hexes);
+    s.players[0].isAi = true;
+    expect(chooseAiAction(s, AI, training)).toBeNull();
+  });
+  it('при лимите гексов отвечает атакой на войне', () => {
+    const hexes: Partial<HexState>[] = [{ q: 4, r: 4, ownerId: P }];
+    for (let i = 0; i < 5; i++) hexes.push({ q: 5 + i, r: 4, ownerId: AI });
+    const s = makeState(hexes);
+    s.players[0].isAi = true;
+    declareWar(s, AI, P);
+    expect(chooseAiAction(s, AI, training)).toEqual({ type: 'attack', q: 4, r: 4, points: 150 });
+  });
+});
