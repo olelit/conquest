@@ -304,7 +304,11 @@ export interface BattleResult {
   loserId?: number;
 }
 
-export function tickBattles(state: GameState): BattleResult[] {
+export interface TickBattlesOptions {
+  canCapture?: (hex: HexState, attackerId: number) => boolean;
+}
+
+export function tickBattles(state: GameState, opts: TickBattlesOptions = {}): BattleResult[] {
   const results: BattleResult[] = [];
   for (const hex of state.hexes) {
     if (hex.attackerId === null) continue;
@@ -322,6 +326,11 @@ export function tickBattles(state: GameState): BattleResult[] {
       hex.battleProgress -= 1;
     }
     if (hex.battleProgress >= CAPTURE_TICKS) {
+      if (opts.canCapture && !opts.canCapture(hex, hex.attackerId)) {
+        results.push({ q: hex.q, r: hex.r, winnerId: null });
+        resetBattle(hex);
+        continue;
+      }
       const oldOwnerId = hex.ownerId;
       const winner = state.players.find((p) => p.id === hex.attackerId);
       if (winner) winner.points += hex.attackInvestment;

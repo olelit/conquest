@@ -1017,3 +1017,25 @@ describe('placeFirstHex', () => {
     expect(findHex(s, 3, 3)!.ownerId).toBe(AI);
   });
 });
+
+describe('tickBattles: canCapture', () => {
+  it('запрещает захват защищённого гекса — ничья', () => {
+    const s = makeState([
+      { q: 3, r: 3, ownerId: P, attackerId: AI, attackInvestment: 500, defenseInvestment: 0, battleProgress: CAPTURE_TICKS - 1 },
+    ]);
+    const results = tickBattles(s, { canCapture: (hex) => hex.ownerId !== P });
+    const hex = findHex(s, 3, 3)!;
+    expect(results).toEqual([{ q: 3, r: 3, winnerId: null }]);
+    expect(hex.ownerId).toBe(P);
+    expect(hex.attackerId).toBeNull();
+    expect(hex.battleProgress).toBe(0);
+  });
+  it('без опции захват проходит как раньше', () => {
+    const s = makeState([
+      { q: 3, r: 3, ownerId: P, attackerId: AI, attackInvestment: 500, defenseInvestment: 0, battleProgress: CAPTURE_TICKS - 1 },
+    ]);
+    const results = tickBattles(s);
+    expect(results[0].winnerId).toBe(AI);
+    expect(findHex(s, 3, 3)!.ownerId).toBe(AI);
+  });
+});
