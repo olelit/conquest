@@ -910,6 +910,41 @@ describe('Room: обучение', () => {
     expect(proposal).toBeDefined();
     expect(proposal!.to).toBe(ai.id);
   });
+  it('ИИ ждёт первый гекс игрока, затем ставит свой рядом', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(4, 3).terrain = 'grass';
+    find(5, 3).terrain = 'grass';
+    room.tick();
+    expect(g.hexes.some((h) => h.ownerId === ai.id)).toBe(false);
+    expect(room.handleAction(1, 'capture', { q: 4, r: 3 }).type).toBe('state');
+    room['aiLastActionAt'].set(ai.id, Date.now() - 2000);
+    room.tick();
+    const aiHexes = g.hexes.filter((h) => h.ownerId === ai.id);
+    expect(aiHexes).toHaveLength(1);
+    expect(rules.isAdjacent(aiHexes[0], find(4, 3))).toBe(true);
+    expect(aiHexes[0].attackerId).toBeNull();
+  });
+  it('ИИ не расширяется сверх лимита гексов', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(1, 1).ownerId = ai.id;
+    find(2, 1).ownerId = ai.id;
+    find(3, 1).ownerId = ai.id;
+    find(1, 2).ownerId = ai.id;
+    find(2, 2).ownerId = ai.id;
+    find(3, 2).terrain = 'grass';
+    room.tick();
+    expect(find(3, 2).ownerId).toBeNull();
+  });
 });
 
 describe('Room: большинство — решение игрока', () => {

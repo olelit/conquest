@@ -422,7 +422,10 @@ export class Room {
       if (now - last < config.aiActionIntervalMs) continue;
       this.aiLastActionAt.set(player.id, now);
       this.handleAiDiplomacy(state, player.id);
-      const action = chooseAiAction(state, player.id);
+      const action = chooseAiAction(state, player.id, {
+        training: this.training,
+        maxHexes: config.trainingAiMaxHexes,
+      });
       if (action) {
         this.applyAiAction(player.id, action);
       }
@@ -806,6 +809,12 @@ export class Room {
     const name = this.playerName(playerId);
     switch (action.type) {
       case 'capture':
+        if (this.training && rules.hexCount(state, playerId) === 0) {
+          if (rules.placeFirstHex(state, playerId, action.q, action.r)) {
+            this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: action.q, r: action.r });
+          }
+          break;
+        }
         if (rules.validateCapture(state, playerId, action.q, action.r).ok) {
           rules.applyCapture(state, playerId, action.q, action.r);
           this.stats.record({ type: 'action', t: Date.now(), playerId, action: 'capture', q: action.q, r: action.r });
