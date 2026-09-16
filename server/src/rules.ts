@@ -252,6 +252,19 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
   }
 }
 
+// Первый гекс без боя: в обучении ИИ ставится вплотную к игроку,
+// поэтому правила «сначала объяви войну» и боя у границы обходятся.
+export function placeFirstHex(state: GameState, playerId: number, q: number, r: number): boolean {
+  const hex = findHex(state, q, r);
+  if (!hex || hex.ownerId !== null || hex.attackerId !== null) return false;
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.eliminated) return false;
+  hex.ownerId = playerId;
+  hex.fortress = false;
+  if (!player.capital) player.capital = { q, r };
+  return true;
+}
+
 function hasAdjacentOtherOwner(state: GameState, q: number, r: number, playerId: number): boolean {
   return NEIGHBOR_OFFSETS.some(([dq, dr]) => {
     const nq = q + dq;

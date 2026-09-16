@@ -24,6 +24,7 @@ import {
   isInBounds,
   makeAlliance,
   makePeace,
+  placeFirstHex,
   playerIncome,
   pointLimit,
   relation,
@@ -997,5 +998,22 @@ describe('крепость', () => {
     tickBattles(s);
     const hex = s.hexes.find((h) => h.q === 5 && h.r === 5)!;
     expect(hex.attackInvestment).toBe(87);
+  });
+});
+
+describe('placeFirstHex', () => {
+  it('ставит владельца и столицу бесплатно, без боя', () => {
+    const s = makeState();
+    expect(placeFirstHex(s, P, 3, 3)).toBe(true);
+    const hex = findHex(s, 3, 3)!;
+    expect(hex.ownerId).toBe(P);
+    expect(hex.attackerId).toBeNull();
+    expect(s.players[0].capital).toEqual({ q: 3, r: 3 });
+    expect(s.players[0].points).toBe(1000);
+  });
+  it('отказывает на занятом гексе', () => {
+    const s = makeState([{ q: 3, r: 3, ownerId: AI }]);
+    expect(placeFirstHex(s, P, 3, 3)).toBe(false);
+    expect(findHex(s, 3, 3)!.ownerId).toBe(AI);
   });
 });
