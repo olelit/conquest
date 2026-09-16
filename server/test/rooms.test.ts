@@ -947,6 +947,71 @@ describe('Room: обучение', () => {
     expect(rules.hexCount(g, ai.id)).toBe(5);
     expect(find(3, 2).ownerId).toBeNull();
   });
+  it('ИИ не объявляет войну игроку в обучении', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(6, 5).ownerId = 1;
+    g.players[0].capital = { q: 6, r: 5 };
+    find(7, 5).ownerId = ai.id;
+    find(8, 5).ownerId = ai.id;
+    find(8, 6).ownerId = ai.id;
+    g.players[1].capital = { q: 7, r: 5 };
+    room.tick();
+    expect(rules.relation(g, 1, ai.id)).toBe('peace');
+    expect(room.view(1).log.some((l) => l.text.includes('declared war'))).toBe(false);
+  });
+  it('после объявления войны игроком ИИ атакует его гекс', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(6, 5).ownerId = 1;
+    g.players[0].capital = { q: 6, r: 5 };
+    find(7, 5).ownerId = ai.id;
+    g.players[1].capital = { q: 7, r: 5 };
+    rules.declareWar(g, 1, ai.id);
+    room.tick();
+    expect(g.hexes.some((h) => h.ownerId === 1 && h.attackerId === ai.id)).toBe(true);
+  });
+  it('ИИ не забирает столицу игрока — бой заканчивается ничьей', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(6, 5).ownerId = 1;
+    find(6, 5).attackerId = ai.id;
+    find(6, 5).attackInvestment = 500;
+    find(6, 5).defenseInvestment = 0;
+    find(6, 5).battleProgress = rules.CAPTURE_TICKS - 1;
+    g.players[0].capital = { q: 6, r: 5 };
+    find(7, 5).ownerId = ai.id;
+    g.players[1].capital = { q: 7, r: 5 };
+    rules.declareWar(g, 1, ai.id);
+    room.tick();
+    expect(find(6, 5).ownerId).toBe(1);
+    expect(g.players[0].eliminated).not.toBe(true);
+  });
+  it('при потере столицы человек не выбывает, гекс возвращается', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const find = (q: number, r: number) => g.hexes.find((h) => h.q === q && h.r === r)!;
+    find(6, 5).ownerId = ai.id;
+    g.players[0].capital = { q: 6, r: 5 };
+    room['handlePlayerLoss'](1);
+    expect(find(6, 5).ownerId).toBe(1);
+    expect(g.players[0].eliminated).not.toBe(true);
+  });
 });
 
 describe('Room: большинство — решение игрока', () => {

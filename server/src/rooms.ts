@@ -343,7 +343,10 @@ export class Room {
         players: state.players.map((p) => ({ id: p.id, hexCount: rules.hexCount(state, p.id), points: p.points })),
       });
     }
-    const results = rules.tickBattles(state);
+    const results = rules.tickBattles(
+      state,
+      this.training ? { canCapture: (hex) => !this.isHumanCapital(hex) } : {},
+    );
     for (const result of results) {
       this.stats.record({ type: 'battle', t: Date.now(), q: result.q, r: result.r, winnerId: result.winnerId });
       this.attackStartedAt.delete(`${result.q},${result.r}`);
@@ -421,7 +424,7 @@ export class Room {
       const last = this.aiLastActionAt.get(player.id) ?? 0;
       if (now - last < config.aiActionIntervalMs) continue;
       this.aiLastActionAt.set(player.id, now);
-      this.handleAiDiplomacy(state, player.id);
+      if (!this.training) this.handleAiDiplomacy(state, player.id);
       const action = chooseAiAction(state, player.id, {
         training: this.training,
         maxHexes: config.trainingAiMaxHexes,
@@ -443,7 +446,7 @@ export class Room {
     );
     if (majority !== undefined) {
       if (majority.isAi) {
-        state.winnerId = majority.id;
+        if (!this.training) state.winnerId = majority.id;
       } else {
         this.majorityHolderId = majority.id;
       }
@@ -452,7 +455,7 @@ export class Room {
     this.majorityHolderId = null;
     const remaining = state.players.filter((p) => !p.eliminated);
     if (remaining.length === 1 && rules.hexCount(state, remaining[0].id) > 0) {
-      state.winnerId = remaining[0].id;
+      if (!(this.training && remaining[0].isAi)) state.winnerId = remaining[0].id;
     }
   }
 
@@ -507,6 +510,23 @@ export class Room {
 
   private handlePlayerLoss(playerId: number): void {
     const state = this.state!;
+    if (this.training) {
+      const player = state.players.find((p) => p.id === playerId);
+      if (player && !player.isAi) {
+        if (player.capital) {
+          const capitalHex = rules.findHex(state, player.capital.q, player.capital.r);
+          if (capitalHex && capitalHex.ownerId !== playerId) {
+            capitalHex.ownerId = playerId;
+            capitalHex.fortress = false;
+          }
+        }
+        const cut = rules.applyCut(state, playerId);
+        if (cut.length > 0) {
+          this.addLog(`${this.playerName(playerId)} was cut off: ${cut.length} hexes became neutral`);
+        }
+        return;
+      }
+    }
     const elim = rules.eliminateIfCapitalLost(state, playerId, this.rng);
     if (elim) {
       this.pendingProposals = this.pendingProposals.filter((p) => p.from !== elim.eliminatedId && p.to !== elim.eliminatedId);
@@ -844,6 +864,12 @@ export class Room {
         }
         break;
     }
+  }
+
+  private isHumanCapital(hex: HexState): boolean {
+    const human = this.state?.players.find((p) => !p.isAi && !p.eliminated);
+    if (!human?.capital) return false;
+    return human.capital.q === hex.q && human.capital.r === hex.r;
   }
 
   private playerName(playerId: number): string {
