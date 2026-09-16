@@ -381,7 +381,9 @@ git commit -m "feat: обучение — лимит гексов и первы�
     find(1, 2).ownerId = ai.id;
     find(2, 2).ownerId = ai.id;
     find(3, 2).terrain = 'grass';
+    expect(rules.hexCount(g, ai.id)).toBe(5);
     room.tick();
+    expect(rules.hexCount(g, ai.id)).toBe(5);
     expect(find(3, 2).ownerId).toBeNull();
   });
 ```
