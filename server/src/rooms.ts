@@ -445,6 +445,7 @@ export class Room {
       (p) => !p.eliminated && rules.hexCount(state, p.id) >= rules.winHexCount(state.hexes.length),
     );
     if (majority !== undefined) {
+      this.majorityHolderId = null;
       if (majority.isAi) {
         if (!this.training) state.winnerId = majority.id;
       } else {
@@ -520,10 +521,7 @@ export class Room {
             capitalHex.fortress = false;
           }
         }
-        const cut = rules.applyCut(state, playerId);
-        if (cut.length > 0) {
-          this.addLog(`${this.playerName(playerId)} was cut off: ${cut.length} hexes became neutral`);
-        }
+        this.applyCutToPlayer(playerId);
         return;
       }
     }
@@ -571,10 +569,14 @@ export class Room {
       }
       if (elim.capturerId !== null) this.lastCapturerId = elim.capturerId;
     } else {
-      const cut = rules.applyCut(state, playerId);
-      if (cut.length > 0) {
-        this.addLog(`${this.playerName(playerId)} was cut off: ${cut.length} hexes became neutral`);
-      }
+      this.applyCutToPlayer(playerId);
+    }
+  }
+
+  private applyCutToPlayer(playerId: number): void {
+    const cut = rules.applyCut(this.state!, playerId);
+    if (cut.length > 0) {
+      this.addLog(`${this.playerName(playerId)} was cut off: ${cut.length} hexes became neutral`);
     }
   }
 

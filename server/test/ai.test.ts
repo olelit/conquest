@@ -366,4 +366,19 @@ describe('chooseAiAction: обучение', () => {
     declareWar(s, AI, P);
     expect(chooseAiAction(s, AI, training)).toEqual({ type: 'attack', q: 4, r: 4, points: 150 });
   });
+  it('при равной стоимости выбирает кандидата с меньшими (q, r)', () => {
+    const s = makeState([{ q: 4, r: 4, ownerId: P }]);
+    s.players[0].isAi = true;
+    for (const h of s.hexes) h.terrain = 'water';
+    const find = (q: number, r: number) => s.hexes.find((h) => h.q === q && h.r === r)!;
+    find(4, 5).terrain = 'grass';
+    find(5, 3).terrain = 'grass';
+    expect(chooseAiAction(s, AI, training)).toEqual({ type: 'capture', q: 4, r: 5 });
+  });
+  it('ждёт, если рядом с игроком нет свободной земли', () => {
+    const s = makeState([{ q: 0, r: 0, ownerId: P }]);
+    s.players[0].isAi = true;
+    for (const h of s.hexes) h.terrain = 'water';
+    expect(chooseAiAction(s, AI, training)).toBeNull();
+  });
 });

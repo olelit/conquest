@@ -256,7 +256,7 @@ export function applyCapture(state: GameState, playerId: number, q: number, r: n
 // поэтому правила «сначала объяви войну» и боя у границы обходятся.
 export function placeFirstHex(state: GameState, playerId: number, q: number, r: number): boolean {
   const hex = findHex(state, q, r);
-  if (!hex || hex.ownerId !== null || hex.attackerId !== null) return false;
+  if (!hex || hex.ownerId !== null || hex.attackerId !== null || hex.terrain === 'water') return false;
   const player = state.players.find((p) => p.id === playerId);
   if (!player || player.eliminated) return false;
   hex.ownerId = playerId;

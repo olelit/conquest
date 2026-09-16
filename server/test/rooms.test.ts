@@ -1012,6 +1012,29 @@ describe('Room: обучение', () => {
     expect(find(6, 5).ownerId).toBe(1);
     expect(g.players[0].eliminated).not.toBe(true);
   });
+  it('ИИ с большинством гексов не побеждает в обучении', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    const winCount = rules.winHexCount(g.hexes.length);
+    for (const hex of g.hexes.slice(0, winCount)) hex.ownerId = ai.id;
+    room.tick();
+    expect(rules.hexCount(g, ai.id)).toBeGreaterThanOrEqual(winCount);
+    expect(g.winnerId).toBeNull();
+  });
+  it('единственный оставшийся ИИ не побеждает в обучении', () => {
+    const room = new Room(1, 'Тест', 'tutorial', 2, true, 1, () => 0.5, 'easy', false, true);
+    room.addHuman('A', 1);
+    room.start(1);
+    const g = room.gameState!;
+    const ai = g.players.find((p) => p.isAi)!;
+    g.hexes[0].ownerId = ai.id;
+    g.players[0].eliminated = true;
+    room.tick();
+    expect(g.winnerId).toBeNull();
+  });
 });
 
 describe('Room: большинство — решение игрока', () => {

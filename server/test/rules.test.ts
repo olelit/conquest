@@ -1016,6 +1016,21 @@ describe('placeFirstHex', () => {
     expect(placeFirstHex(s, P, 3, 3)).toBe(false);
     expect(findHex(s, 3, 3)!.ownerId).toBe(AI);
   });
+  it('отказывает на водном гексе', () => {
+    const s = makeState([{ q: 3, r: 3, terrain: 'water' }]);
+    expect(placeFirstHex(s, P, 3, 3)).toBe(false);
+    const hex = findHex(s, 3, 3)!;
+    expect(hex.ownerId).toBeNull();
+    expect(s.players[0].capital).toBeUndefined();
+  });
+  it('отказывает на гексе с активным боем', () => {
+    const s = makeState([{ q: 3, r: 3, attackerId: AI }]);
+    expect(placeFirstHex(s, P, 3, 3)).toBe(false);
+    const hex = findHex(s, 3, 3)!;
+    expect(hex.ownerId).toBeNull();
+    expect(hex.attackerId).toBe(AI);
+    expect(s.players[0].capital).toBeUndefined();
+  });
 });
 
 describe('tickBattles: canCapture', () => {
